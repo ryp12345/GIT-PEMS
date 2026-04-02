@@ -2,11 +2,8 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 const menuLinks = [
-  { name: 'Dashboard', path: '/dashboard', icon: '📊',  },
-  { name: 'Electives', path: '/update-electives', icon: '✏️', },
-  { name: 'Statistic', path: '/statistic', icon: '📈', },
-  { name: 'Allocate', path: '/allocate', icon: '🧮', },
-  { name: 'Elective Students', path: '/elective-students', icon: '👥',}
+  { name: 'Dashboard', path: '/dashboard', icon: '📊' },
+  { name: 'Elective Instance', path: '/elective-instance', icon: '🗓️' }
 ];
 
 export { menuLinks };
@@ -57,7 +54,9 @@ export default function Sidebar({ isOpen, onClose, user }) {
 
         <nav className="flex-1 space-y-2 px-3 pb-4">
           {menuLinks.map((link) => {
-            const isActive = location.pathname === link.path;
+            const isActive = link.path === '/elective-instance'
+    				? location.pathname.startsWith('/elective-instance')
+    				: location.pathname === link.path;
             return (
               <Link
                 key={link.path}
