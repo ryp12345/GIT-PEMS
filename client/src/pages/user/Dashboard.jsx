@@ -43,7 +43,7 @@ export default function UserDashboard() {
 											<span>
 												<span className="block text-sm font-semibold">{index + 1}. {item.name}</span>
 											</span>
-											<span className="text-lg">›</span>
+											<span className="text-lg">›</span> 
 										</div>
 									))}
 								</div>
