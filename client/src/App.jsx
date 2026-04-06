@@ -19,6 +19,7 @@ export default function App(){
 						<Route key={path} path={path} element={<HODDashboard />} />
 					))}
 					<Route path="/elective-instance/:instanceId" element={<HODDashboard />} />
+					<Route path="/elective-instance/:instanceId/view" element={<HODDashboard />} />
 					<Route path="/" element={<Navigate to="/login" replace />} />
 					<Route path="*" element={<Navigate to="/login" replace />} />
 				</Routes>

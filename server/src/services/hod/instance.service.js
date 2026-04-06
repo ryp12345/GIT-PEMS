@@ -94,9 +94,19 @@ async function activate({ id, deptid }) {
 	return updated;
 }
 
+async function remove({ id, deptid }) {
+	await instanceModel.ensureTable();
+	const deleted = await instanceModel.deleteInstance({ id, deptid });
+	if (!deleted) {
+		throw new Error('Instance not found');
+	}
+	return deleted;
+}
+
 module.exports = {
 	listByDepartment,
 	create,
 	update,
-	activate
+	activate,
+	remove
 };

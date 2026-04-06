@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as authApi from '../api/auth.api';
 
 export const AuthContext = createContext(null);
@@ -14,11 +14,25 @@ export default function AuthProvider({ children }) {
   const [error, setError] = useState('');
   const isAuthenticated = Boolean(user || localStorage.getItem('token'));
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('user');
+      if (raw) setUser(JSON.parse(raw));
+    } catch (err) {
+      // ignore parse errors
+    }
+  }, []);
+
   const login = async (username, password) => {
     setError('');
     const res = await authApi.login({ username, password });
     const { token, user: u } = res.data;
     localStorage.setItem('token', token);
+    try {
+      localStorage.setItem('user', JSON.stringify(u));
+    } catch (err) {
+      // ignore storage errors
+    }
     setUser(u);
     return res.data;
   };
@@ -28,12 +42,22 @@ export default function AuthProvider({ children }) {
     const res = await authApi.register({ email, password, firstName, lastName });
     const { token, user: u } = res.data;
     localStorage.setItem('token', token);
+    try {
+      localStorage.setItem('user', JSON.stringify(u));
+    } catch (err) {
+      // ignore storage errors
+    }
     setUser(u);
     return res.data;
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    try {
+      localStorage.removeItem('user');
+    } catch (err) {
+      // ignore
+    }
     setUser(null);
   };
 

@@ -52,3 +52,15 @@ exports.activate = async (req, res) => {
 		return res.status(400).json({ error: error.message || 'Unable to activate instance' });
 	}
 };
+
+exports.remove = async (req, res) => {
+	try {
+		const deleted = await instanceService.remove({
+			id: Number(req.params.id),
+			deptid: req.user.deptid
+		});
+		return res.json(deleted);
+	} catch (error) {
+		return res.status(400).json({ error: error.message || 'Unable to delete instance' });
+	}
+};

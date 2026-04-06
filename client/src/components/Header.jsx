@@ -22,11 +22,17 @@ export default function Header({ onMenuToggle }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isProfileOpen]);
 
-  const displayName = user?.email || 'User';
+  const displayName = user?.username || user?.email || 'User';
   const initials = (displayName?.[0] || 'U').toUpperCase();
 
   const handleLogout = () => {
-    logout();
+    console.log('Header: handleLogout called, logout:', typeof logout);
+    try {
+      if (typeof logout === 'function') logout();
+      else console.warn('Header: logout is not a function', logout);
+    } catch (err) {
+      console.error('Header: logout threw', err);
+    }
     navigate('/login', { replace: true });
   };
 
@@ -90,7 +96,7 @@ export default function Header({ onMenuToggle }) {
                 <div className="px-4 py-3 border-b border-slate-100">
                   <div className="text-sm font-medium text-slate-900 break-all">{displayName}</div>
                   <div className="mt-2 inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                    {user?.role || 'User'}
+                    {user?.name || user?.role || 'User'}
                   </div>
                 </div>
                 <button
@@ -117,7 +123,7 @@ export default function Header({ onMenuToggle }) {
         <div className="md:hidden px-4 pb-4 space-y-2 border-t border-slate-100">
           <div className="text-sm text-slate-600 pt-3 break-all">{displayName}</div>
           <div className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-            {user?.role || 'User'}
+            {user?.name || user?.role || 'User'}
           </div>
           <button
             onClick={() => {

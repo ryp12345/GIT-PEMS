@@ -104,10 +104,21 @@ async function setActive({ id, deptid }) {
 	}
 }
 
+async function deleteInstance({ id, deptid }) {
+	const result = await pool.query(
+		`DELETE FROM public.hod_academic_year_instances
+		 WHERE id = $1 AND deptid = $2
+		 RETURNING id, deptid, academic_year, title, start_date, end_date, is_active, created_at, updated_at`,
+		[id, deptid]
+	);
+	return result.rows[0] ? mapRow(result.rows[0]) : null;
+}
+
 module.exports = {
 	ensureTable,
 	listByDepartment,
 	createInstance,
 	updateInstance,
-	setActive
+	setActive,
+	deleteInstance
 };

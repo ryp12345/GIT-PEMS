@@ -4,6 +4,7 @@ import Header from '../../components/Header';
 import Sidebar, { menuLinks } from '../../components/Sidebar';
 import { useAuth } from '../../context/AuthContext';
 import ElectiveInstancePage from './ElectiveInstancePage';
+import ElectiveInstanceViewPage from './ElectiveInstanceViewPage';
 
 function DashboardPlaceholder({ title }) {
 	return (
@@ -17,12 +18,16 @@ function DashboardPlaceholder({ title }) {
 export default function HODDashboard() {
 	const { user } = useAuth();
 	const location = useLocation();
+	const isInstanceViewPage = /^\/elective-instance\/\d+\/view$/.test(location.pathname);
 	const isInstancePage = location.pathname.startsWith('/elective-instance');
 	const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 	const activeLink = menuLinks.find((item) => item.path === location.pathname) || menuLinks[0];
 	const activeLabel = activeLink?.name || 'Dashboard';
 
 	function renderContent() {
+		if (isInstanceViewPage) {
+			return <ElectiveInstanceViewPage />;
+		}
 		if (isInstancePage) {
 			return <ElectiveInstancePage />;
 		}

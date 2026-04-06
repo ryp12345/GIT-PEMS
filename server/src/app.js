@@ -5,6 +5,7 @@ const app = express();
 const authRoutes = require('./routes/auth.routes');
 const hodInstanceRoutes = require('./routes/hod/instance.routes');
 const errorMiddleware = require('./middlewares/error.middleware');
+const hodElectiveRoutes = require('./routes/hod/elective.routes');
 
 app.use(express.json());
 const isProduction = process.env.NODE_ENV === 'production';
@@ -59,8 +60,10 @@ app.use(cors({
 	credentials: true
 }));
 
+
 app.use('/api/auth', authRoutes);
 app.use('/api/hod/instances', hodInstanceRoutes);
+app.use('/api/hod/electives', hodElectiveRoutes);
 
 app.use(errorMiddleware);
 
