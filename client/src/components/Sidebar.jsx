@@ -3,7 +3,9 @@ import { Link, useLocation } from 'react-router-dom';
 
 const menuLinks = [
   { name: 'Dashboard', path: '/dashboard', icon: '📊' },
-  { name: 'Elective Instance', path: '/elective-instance', icon: '🗓️' }
+  { name: 'Elective Instance', path: '/elective-instance', icon: '🗂️' },
+  { name: 'Statistics', path: '/elective-stats', icon: '📈' },
+  { name: 'Elective Students', path: '/elective-students', icon: '👥' }
 ];
 
 export { menuLinks };

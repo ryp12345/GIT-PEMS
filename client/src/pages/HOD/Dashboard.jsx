@@ -5,6 +5,8 @@ import Sidebar, { menuLinks } from '../../components/Sidebar';
 import { useAuth } from '../../context/AuthContext';
 import ElectiveInstancePage from './ElectiveInstancePage';
 import ElectiveInstanceViewPage from './ElectiveInstanceViewPage';
+import StatsPage from './StatsPage';
+import ElectiveStudentsPage from './ElectiveStudentsPage';
 
 function DashboardPlaceholder({ title }) {
 	return (
@@ -30,6 +32,14 @@ export default function HODDashboard() {
 		}
 		if (isInstancePage) {
 			return <ElectiveInstancePage />;
+		}
+
+		if (location.pathname === '/elective-stats') {
+			return <StatsPage />;
+		}
+
+		if (location.pathname === '/elective-students') {
+			return <ElectiveStudentsPage />;
 		}
 
 		return <DashboardPlaceholder title={activeLabel} />;

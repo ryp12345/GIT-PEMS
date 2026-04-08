@@ -6,6 +6,9 @@ const authRoutes = require('./routes/auth.routes');
 const hodInstanceRoutes = require('./routes/hod/instance.routes');
 const errorMiddleware = require('./middlewares/error.middleware');
 const hodElectiveRoutes = require('./routes/hod/elective.routes');
+const hodStatsRoutes = require('./routes/hod/stats.routes');
+const hodPreferencesRoutes = require('./routes/hod/preferences.routes');
+const hodStudentsRoutes = require('./routes/hod/students.routes');
 
 app.use(express.json());
 const isProduction = process.env.NODE_ENV === 'production';
@@ -64,6 +67,9 @@ app.use(cors({
 app.use('/api/auth', authRoutes);
 app.use('/api/hod/instances', hodInstanceRoutes);
 app.use('/api/hod/electives', hodElectiveRoutes);
+app.use('/api/hod/stats', hodStatsRoutes);
+app.use('/api/hod/preferences', hodPreferencesRoutes);
+app.use('/api/hod/students', hodStudentsRoutes);
 
 app.use(errorMiddleware);
 

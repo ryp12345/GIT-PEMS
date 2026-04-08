@@ -6,7 +6,6 @@ import { uploadStudentsExcel } from '../../api/hod/student.api';
 const TABS = [
 	{ id: 'students', label: 'Students' },
 	{ id: 'groups', label: 'Elective Groups' },
-	{ id: 'electives', label: 'Electives' },
 	{ id: 'allocation', label: 'Allocation' }
 ];
 
@@ -265,7 +264,7 @@ function StudentsTab() {
 
 // ─── Elective Groups ─────────────────────────────────────────────────────────
 
-function GroupsTab() {
+function GroupsTab({ openElectives }) {
 	const [groups, setGroups] = useState([]);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [form, setForm] = useState({ groupName: '', semester: '' });
@@ -289,12 +288,18 @@ function GroupsTab() {
 
 	return (
 		<>
-			<div className="mb-4 flex justify-end">
-				<button onClick={openModal} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+			<div className="mb-4 flex justify-end gap-2">
+				{/* <button onClick={openModal} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
 					<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
 						<path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
 					</svg>
 					Add Group
+				</button> */}
+				<button onClick={() => openElectives && openElectives()} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+					<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+						<path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+					</svg>
+					Add Elective
 				</button>
 			</div>
 
@@ -424,7 +429,7 @@ function ElectivesTab() {
 			setElectives((prev) => prev.map((el) => el.id === editId ? {
 				...el,
 				...form,
-				groupId: Number(form.groupId),
+				groupId: form.groupId,
 				division: form.division,
 				max: form.max,
 				preReq: form.preReq,
@@ -438,7 +443,7 @@ function ElectivesTab() {
 				{
 					id: Date.now(),
 					...form,
-					groupId: Number(form.groupId),
+					groupId: form.groupId,
 					division: form.division,
 					max: form.max,
 					preReq: form.preReq,
@@ -456,7 +461,12 @@ function ElectivesTab() {
 		setElectives((prev) => prev.filter((el) => el.id !== id));
 	}
 
-	const getGroupName = (groupId) => groups.find((g) => g.id === groupId)?.groupName || '-';
+	const getGroupName = (groupId) => {
+		if (!groupId && groupId !== 0) return '-';
+		const matched = groups.find((g) => String(g.id) === String(groupId));
+		if (matched) return matched.groupName;
+		return String(groupId);
+	};
 
 	return (
 		<>
@@ -531,12 +541,32 @@ function ElectivesTab() {
 						<Field label="Elective Name *">
 							<input type="text" value={form.electiveName} onChange={(e) => setForm((p) => ({ ...p, electiveName: e.target.value }))} className={inputCls} placeholder="e.g. Machine Learning" required />
 						</Field>
-						<Field label="Group *">
+						{/* <Field label="Elective Group *">
 							<select value={form.groupId} onChange={(e) => setForm((p) => ({ ...p, groupId: e.target.value }))} className={inputCls} required>
 								<option value="">Select group</option>
 								{groups.map((g) => <option key={g.id} value={g.id}>{g.groupName}</option>)}
 							</select>
+						</Field> */}
+
+						<Field label="Elective Group *">
+							<select
+								value={form.groupId}
+								onChange={(e) => setForm((p) => ({ ...p, groupId: e.target.value }))}
+								className={inputCls}
+								required
+							>
+								<option value="">Select Elective Group</option>
+								<option value="Elective-I">Elective-I</option>
+								<option value="Elective-II">Elective-II</option>
+								<option value="Elective-III">Elective-III</option>
+								<option value="Elective-IV">Elective-IV</option>
+								<option value="Elective-V">Elective-V</option>
+								<option value="Elective-VI">Elective-VI</option>
+								<option value="Elective-VII">Elective-VII</option>
+								<option value="Elective-VIII">Elective-VIII</option>
+							</select>
 						</Field>
+
 						<Field label="Division *">
 							<input type="text" value={form.division} onChange={(e) => setForm((p) => ({ ...p, division: e.target.value }))} className={inputCls} placeholder="e.g. 1" required />
 						</Field>
@@ -757,7 +787,7 @@ export default function ElectiveInstanceViewPage() {
 
 	const tabContent = {
 		students: <StudentsTab />,
-		groups: <GroupsTab />,
+		groups: <GroupsTab openElectives={() => setActiveTab('electives')} />,
 		electives: <ElectivesTab />,
 		allocation: <AllocationTab />
 	};
