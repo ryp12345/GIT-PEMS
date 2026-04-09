@@ -1,2 +1,1 @@
-Name,UID,USN,DeptID,CGPA,aca_year,sem,diploma
-Abhishek,1234567890,1RV21CS001,1,9.25,2025-26,6,0
+Name,UID,USN,CGPA,sem,diploma

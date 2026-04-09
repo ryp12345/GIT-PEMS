@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { listAcademicYearInstances } from '../../api/hod/instance.api';
-import { uploadStudentsExcel } from '../../api/hod/student.api';
+import { listStudents, createStudent, updateStudent, deleteStudent, uploadStudentsExcel } from '../../api/hod/student.api';
 
 const TABS = [
 	{ id: 'students', label: 'Students' },
@@ -16,117 +16,198 @@ function formatDateOnly(value) {
 
 // ─── Students ────────────────────────────────────────────────────────────────
 
-function StudentsTab() {
+function StudentsTab(props) {
 	const [students, setStudents] = useState([]);
 	const [uploading, setUploading] = useState(false);
 	const [uploadResult, setUploadResult] = useState(null);
 	const fileInputRef = useRef();
+	const [selectedFile, setSelectedFile] = useState(null);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [form, setForm] = useState({
 		Name: '',
 		UID: '',
 		USN: '',
-		DeptID: '',
 		CGPA: '',
-		aca_year: '',
 		sem: '',
 		diploma: '',
-		// Timestamp removed
 	});
+	const [editId, setEditId] = useState(null);
 	const [error, setError] = useState('');
+	const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
 	const [search, setSearch] = useState('');
+	const [page, setPage] = useState(1);
+	const PAGE_SIZE = 10;
+	const { instanceId } = props;
+
+	useEffect(() => {
+		if (!instanceId) return;
+		(async () => {
+			try {
+				const res = await listStudents(instanceId);
+				setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
+			} catch {
+				setStudents([]);
+			}
+		})();
+	}, [instanceId]);
 
 	function openModal() {
-		setForm({
-			Name: '',
-			UID: '',
-			USN: '',
-			DeptID: '',
-			CGPA: '',
-			aca_year: '',
-			sem: '',
-			diploma: '',
-			Timestamp: ''
-		});
-		setError('');
-		setIsModalOpen(true);
+	setForm({
+		Name: '',
+		UID: '',
+		USN: '',
+		CGPA: '',
+		sem: '',
+		diploma: '',
+	});
+	setEditId(null);
+	setError('');
+	setIsModalOpen(true);
+}
+
+function openEditModal(student) {
+	setForm({
+		Name: student.Name,
+		UID: student.UID,
+		USN: student.USN,
+		CGPA: student.CGPA,
+		sem: student.sem,
+		diploma: student.diploma,
+	});
+	setEditId(student.id);
+	setError('');
+	setIsModalOpen(true);
 	}
+
+    async function handleDelete(id) {
+        if (!window.confirm('Remove this student?')) return;
+        try {
+            await deleteStudent(instanceId, id);
+            showNotification('Student removed successfully');
+            const res = await listStudents(instanceId);
+            setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
+        } catch (err) {
+            showNotification(err?.response?.data?.error || 'Unable to delete student', 'error');
+        }
+    }
 	function closeModal() { setIsModalOpen(false); setError(''); }
 
+	function showNotification(message, type = 'success') {
+		setNotification({ show: true, message, type });
+		setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000);
+	}
+
 	function handleSubmit(e) {
-		e.preventDefault();
-		if (!form.Name.trim()) { setError('Student name is required'); return; }
-		if (!form.UID.trim()) { setError('UID is required'); return; }
-		if (!form.USN.trim()) { setError('USN is required'); return; }
-		if (!form.DeptID.trim()) { setError('DeptID is required'); return; }
-		if (!form.CGPA.trim()) { setError('CGPA is required'); return; }
-		if (!form.aca_year.trim()) { setError('Academic year is required'); return; }
-		if (!form.sem.trim()) { setError('Semester is required'); return; }
-		if (!form.diploma.trim()) { setError('Diploma is required'); return; }
-		setStudents((prev) => [
-			...prev,
-			{
-				id: Date.now(),
-				...form,
-				DeptID: Number(form.DeptID),
-				CGPA: Number(form.CGPA),
-				sem: Number(form.sem),
-				diploma: Number(form.diploma),
-				// Timestamp removed
+	e.preventDefault();
+	const isEmpty = (v) => String(v ?? '').trim() === '';
+	if (isEmpty(form.Name)) { setError('Student name is required'); return; }
+	if (isEmpty(form.UID)) { setError('UID is required'); return; }
+	if (isEmpty(form.USN)) { setError('USN is required'); return; }
+	if (isEmpty(form.CGPA)) { setError('CGPA is required'); return; }
+	if (isEmpty(form.sem)) { setError('Semester is required'); return; }
+	if (isEmpty(form.diploma) && form.diploma !== 0) { setError('Diploma is required'); return; }
+	(async () => {
+		try {
+			if (editId) {
+				await updateStudent(instanceId, editId, {
+					...form,
+					CGPA: Number(form.CGPA),
+					sem: Number(form.sem),
+					diploma: Number(form.diploma),
+				});
+					showNotification('Student information updated successfully');
+			} else {
+				await createStudent(instanceId, {
+					...form,
+					CGPA: Number(form.CGPA),
+					sem: Number(form.sem),
+					diploma: Number(form.diploma),
+				});
+					showNotification('Student added successfully');
 			}
-		]);
-		closeModal();
+				const res = await listStudents(instanceId);
+				setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
+			closeModal();
+		} catch (err) {
+			setError(err?.response?.data?.error || 'Operation failed');
+		}
+	})();
 	}
 
-	function handleDelete(id) {
-		if (!window.confirm('Remove this student?')) return;
-		setStudents((prev) => prev.filter((s) => s.id !== id));
-	}
-
-
-	const filtered = useMemo(() => {
-		const q = search.trim().toLowerCase();
-		if (!q) return students;
-		return students.filter((s) =>
-			s.Name.toLowerCase().includes(q) ||
-			s.UID.toLowerCase().includes(q) ||
-			s.USN.toLowerCase().includes(q) ||
-			String(s.DeptID).toLowerCase().includes(q) ||
-			String(s.CGPA).toLowerCase().includes(q) ||
-			String(s.aca_year).toLowerCase().includes(q) ||
-			String(s.sem).toLowerCase().includes(q) ||
-			String(s.diploma).toLowerCase().includes(q)
-		);
-	}, [students, search]);
-
-	// Bulk upload handler
-	async function handleFileUpload(e) {
+	function handleFileSelect(e) {
 		const file = e.target.files[0];
-		if (!file) return;
+		setSelectedFile(file || null);
+		setUploadResult(null);
+		if (file) {
+			// automatically upload the chosen file when using the single Upload button
+			performUpload(file);
+		}
+	}
+
+	async function performUpload(fileArg) {
+		const fileToUpload = fileArg || selectedFile;
+		if (!fileToUpload) return;
 		setUploading(true);
 		setUploadResult(null);
 		try {
 			const formData = new FormData();
-			formData.append('file', file);
-			// Optionally, add more fields if needed (e.g., deptid)
-			const res = await uploadStudentsExcel(formData);
-			setUploadResult({ success: true, message: 'Upload successful', data: res.data });
-			// Optionally, refresh students list from backend here
+			formData.append('file', fileToUpload);
+			const res = await uploadStudentsExcel(instanceId, formData);
+			const uploadedCount = res.data?.count || (res.data?.items || []).length || 0;
+			const invalidCount = res.data?.invalid || 0;
+			if (uploadedCount > 0) {
+				setUploadResult({ success: true, message: `Upload successful: ${uploadedCount} students${invalidCount ? `; ${invalidCount} invalid rows skipped` : ''}`, data: res.data });
+				const listRes = await listStudents(instanceId);
+				setStudents((listRes.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
+				showNotification(`Uploaded ${uploadedCount} students${invalidCount ? `, ${invalidCount} invalid rows skipped` : ''}`);
+				setSelectedFile(null);
+				if (fileInputRef.current) fileInputRef.current.value = '';
+				// show success message briefly, then refresh the page to reflect uploaded changes
+				setTimeout(() => window.location.reload(), 2000);
+			} else {
+				// Server returned success-like response but no valid rows were stored
+				const serverMsg = err?.response?.data?.error; // placeholder
+				setUploadResult({ success: false, message: serverMsg || 'No valid rows found in the file. Nothing was uploaded.' });
+				showNotification(serverMsg || 'No valid rows found in the file', 'error');
+			}
 		} catch (err) {
 			setUploadResult({ success: false, message: err?.response?.data?.error || 'Upload failed' });
+			showNotification(err?.response?.data?.error || 'Upload failed', 'error');
 		} finally {
 			setUploading(false);
-			if (fileInputRef.current) fileInputRef.current.value = '';
 		}
 	}
+		const filtered = useMemo(() => {
+			const q = search.trim().toLowerCase();
+			if (!q) return students;
+			return students.filter((s) =>
+				s.Name.toLowerCase().includes(q) ||
+				s.UID.toLowerCase().includes(q) ||
+				s.USN.toLowerCase().includes(q) ||
+				String(s.CGPA).toLowerCase().includes(q) ||
+				String(s.sem).toLowerCase().includes(q) ||
+				String(s.diploma).toLowerCase().includes(q)
+			);
+		}, [students, search]);
+
+		const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+		const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+		// Bulk upload handler is defined above (no duplicates)
 
 	return (
 		<>
+			{notification.show ? (
+				<div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-lg px-5 py-3 text-sm font-medium text-white shadow-lg ${notification.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
+					<span>{notification.message}</span>
+					<button type="button" onClick={() => setNotification({ show: false, message: '', type: 'success' })} className="ml-2 text-white/80 hover:text-white">✕</button>
+				</div>
+			) : null}
 			<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div className="relative w-full sm:w-72">
 					<input
 						value={search}
-						onChange={(e) => setSearch(e.target.value)}
+						onChange={(e) => { setSearch(e.target.value); setPage(1); }}
 						placeholder="Search students..."
 						className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
 					/>
@@ -135,15 +216,6 @@ function StudentsTab() {
 					</svg>
 				</div>
 				<div className="flex gap-2 flex-wrap">
-					<button
-						onClick={openModal}
-						className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-					>
-						<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-							<path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-						</svg>
-						Add Student
-					</button>
 					<a
 						href="/students_template.csv"
 						download
@@ -153,18 +225,36 @@ function StudentsTab() {
 						<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v12m0 0l-4-4m4 4l4-4m-8 8h8" /></svg>
 						Download Template
 					</a>
-					<label className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer">
-						<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v16h16M4 4l16 16" /></svg>
-						Upload
+
+					<div className="flex items-center gap-2">
 						<input
 							type="file"
 							accept=".xlsx,.xls,.csv"
 							ref={fileInputRef}
-							onChange={handleFileUpload}
+							onChange={handleFileSelect}
 							className="hidden"
 							disabled={uploading}
 						/>
-					</label>
+
+						<button
+							type="button"
+							onClick={() => fileInputRef.current && fileInputRef.current.click()}
+							className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+						>
+							<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v16h16M4 4l16 16" /></svg>
+							Upload
+						</button>
+					</div>
+
+					<button
+						onClick={openModal}
+						className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+					>
+						<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+							<path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+						</svg>
+						Add Student
+					</button>
 				</div>
 				{uploading && <div className="mt-2 text-blue-600">Uploading...</div>}
 				{uploadResult && (
@@ -184,7 +274,6 @@ function StudentsTab() {
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">USN</th>
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">DeptID</th>
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">CGPA</th>
-							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Academic Year</th>
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Semester</th>
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Diploma</th>
 							  {/* Timestamp column removed */}
@@ -192,28 +281,32 @@ function StudentsTab() {
 						</tr>
 					</thead>
 					<tbody className="divide-y divide-gray-100 bg-white">
-						{filtered.length === 0 ? (
-							<tr><td colSpan="11" className="py-10 text-center text-sm text-gray-500">No students found</td></tr>
+						{paginated.length === 0 ? (
+							<tr><td colSpan="9" className="py-10 text-center text-sm text-gray-500">No students found</td></tr>
 						) : (
-							filtered.map((s, i) => (
+							paginated.map((s, i) => (
 								<tr key={s.id} className={`transition-colors hover:bg-blue-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{i + 1}</td>
+									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{(page - 1) * PAGE_SIZE + i + 1}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-gray-900">{s.Name}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{s.UID}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{s.USN}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{s.DeptID}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{s.CGPA}</td>
-									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{s.aca_year}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{s.sem}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{s.diploma}</td>
 									  {/* Timestamp cell removed */}
-									<td className="whitespace-nowrap px-3 py-3 text-center">
-										<button onClick={() => handleDelete(s.id)} className="rounded-lg bg-red-600 p-1.5 text-white hover:bg-red-700" title="Remove">
-											<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-											</svg>
-										</button>
-									</td>
+									 <td className="whitespace-nowrap px-3 py-3 text-center flex gap-2 justify-center">
+										 <button onClick={() => openEditModal(s)} className="rounded-lg bg-blue-600 p-1.5 text-white hover:bg-blue-700" title="Edit">
+											 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+											 </svg>
+										 </button>
+										 <button onClick={() => handleDelete(s.id)} className="rounded-lg bg-red-600 p-1.5 text-white hover:bg-red-700" title="Remove">
+											 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+											 </svg>
+										 </button>
+									 </td>
 								</tr>
 							))
 						)}
@@ -221,8 +314,29 @@ function StudentsTab() {
 				</table>
 			</div>
 
+			{/* Pagination controls (Prev / Next) */}
+			{filtered.length > PAGE_SIZE && (
+				<div className="flex justify-end items-center gap-2 mt-4">
+					<button
+						className="px-3 py-1 rounded border text-sm disabled:opacity-50"
+						onClick={() => setPage(p => Math.max(1, p - 1))}
+						disabled={page === 1}
+					>
+						Prev
+					</button>
+					<span className="text-sm">Page {page} of {totalPages}</span>
+					<button
+						className="px-3 py-1 rounded border text-sm disabled:opacity-50"
+						onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+						disabled={page === totalPages}
+					>
+						Next
+					</button>
+				</div>
+			)}
+
 			{isModalOpen ? (
-				<Modal title="Add Student" onClose={closeModal}>
+				<Modal title={editId ? 'Edit Student' : 'Add Student'} onClose={closeModal}>
 					{error ? <div className="mb-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 					<form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<Field label="Name *">
@@ -234,18 +348,24 @@ function StudentsTab() {
 						<Field label="USN *">
 							<input type="text" value={form.USN} onChange={(e) => setForm((p) => ({ ...p, USN: e.target.value }))} className={inputCls} placeholder="e.g. 1RV21CS001" required />
 						</Field>
-						<Field label="DeptID *">
-							<input type="number" value={form.DeptID} onChange={(e) => setForm((p) => ({ ...p, DeptID: e.target.value }))} className={inputCls} placeholder="e.g. 1" required />
-						</Field>
+						       {/* DeptID field removed */}
 						<Field label="CGPA *">
 							<input type="number" step="0.01" value={form.CGPA} onChange={(e) => setForm((p) => ({ ...p, CGPA: e.target.value }))} className={inputCls} placeholder="e.g. 9.25" required />
 						</Field>
-						<Field label="Academic Year *">
-							<input type="text" value={form.aca_year} onChange={(e) => setForm((p) => ({ ...p, aca_year: e.target.value }))} className={inputCls} placeholder="e.g. 2025-26" required />
-						</Field>
-						<Field label="Semester *">
-							<input type="number" value={form.sem} onChange={(e) => setForm((p) => ({ ...p, sem: e.target.value }))} className={inputCls} placeholder="e.g. 6" required />
-						</Field>
+						       {/* Academic Year field removed */}
+						       <Field label="Semester *">
+							       <select value={form.sem} onChange={(e) => setForm((p) => ({ ...p, sem: e.target.value }))} className={inputCls} required>
+								       <option value="">Select</option>
+								       <option value="1">1</option>
+								       <option value="2">2</option>
+								       <option value="3">3</option>
+								       <option value="4">4</option>
+								       <option value="5">5</option>
+								       <option value="6">6</option>
+								       <option value="7">7</option>
+								       <option value="8">8</option>
+							       </select>
+						       </Field>
 						<Field label="Diploma *">
 							<select value={form.diploma} onChange={(e) => setForm((p) => ({ ...p, diploma: e.target.value }))} className={inputCls} required>
 								<option value="">Select</option>
@@ -254,7 +374,7 @@ function StudentsTab() {
 							</select>
 						</Field>
 						{/* Timestamp field removed */}
-						<div className="sm:col-span-2"><ModalFooter onCancel={closeModal} submitLabel="Add Student" /></div>
+						<div className="sm:col-span-2"><ModalFooter onCancel={closeModal} submitLabel={editId ? 'Update Student' : 'Add Student'} /></div>
 					</form>
 				</Modal>
 			) : null}
@@ -286,75 +406,8 @@ function GroupsTab({ openElectives }) {
 		setGroups((prev) => prev.filter((g) => g.id !== id));
 	}
 
-	return (
-		<>
-			<div className="mb-4 flex justify-end gap-2">
-				{/* <button onClick={openModal} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-					<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-						<path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-					</svg>
-					Add Group
-				</button> */}
-				<button onClick={() => openElectives && openElectives()} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-					<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-						<path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-					</svg>
-					Add Elective
-				</button>
-			</div>
-
-			<div className="overflow-hidden rounded-xl border border-gray-200">
-				<table className="min-w-full divide-y divide-gray-200">
-					<thead className="bg-blue-600">
-						<tr>
-							<th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">S.No</th>
-							<th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Group Name</th>
-							<th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Semester</th>
-							<th className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-white">Actions</th>
-						</tr>
-					</thead>
-					<tbody className="divide-y divide-gray-100 bg-white">
-						{groups.length === 0 ? (
-							<tr><td colSpan="4" className="py-10 text-center text-sm text-gray-500">No elective groups added yet</td></tr>
-						) : (
-							groups.map((g, i) => (
-								<tr key={g.id} className={`transition-colors hover:bg-blue-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-									<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{i + 1}</td>
-									<td className="whitespace-nowrap px-5 py-3 text-sm font-medium text-gray-900">{g.groupName}</td>
-									<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">Semester {g.semester}</td>
-									<td className="whitespace-nowrap px-5 py-3 text-center">
-										<button onClick={() => handleDelete(g.id)} className="rounded-lg bg-red-600 p-1.5 text-white hover:bg-red-700" title="Remove">
-											<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-											</svg>
-										</button>
-									</td>
-								</tr>
-							))
-						)}
-					</tbody>
-				</table>
-			</div>
-
-			{isModalOpen ? (
-				<Modal title="Add Elective Group" onClose={closeModal}>
-					{error ? <div className="mb-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
-					<form onSubmit={handleSubmit} className="space-y-4">
-						<Field label="Group Name *">
-							<input type="text" value={form.groupName} onChange={(e) => setForm((p) => ({ ...p, groupName: e.target.value }))} className={inputCls} placeholder="e.g. Open Elective Group 1" required />
-						</Field>
-						<Field label="Semester *">
-							<select value={form.semester} onChange={(e) => setForm((p) => ({ ...p, semester: e.target.value }))} className={inputCls} required>
-								<option value="">Select semester</option>
-								{['1','2','3','4','5','6','7','8'].map((s) => <option key={s} value={s}>Semester {s}</option>)}
-							</select>
-						</Field>
-						<ModalFooter onCancel={closeModal} submitLabel="Add Group" />
-					</form>
-				</Modal>
-			) : null}
-		</>
-	);
+	// Show the ElectivesTab content in the Elective Groups tab
+	return <ElectivesTab />;
 }
 
 // ─── Electives ───────────────────────────────────────────────────────────────
@@ -786,7 +839,7 @@ export default function ElectiveInstanceViewPage() {
 	}
 
 	const tabContent = {
-		students: <StudentsTab />,
+		students: <StudentsTab instanceId={instanceId} />,
 		groups: <GroupsTab openElectives={() => setActiveTab('electives')} />,
 		electives: <ElectivesTab />,
 		allocation: <AllocationTab />
