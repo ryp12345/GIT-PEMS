@@ -4,6 +4,26 @@ const xlsx = require('xlsx');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Return an XLSX template with optional title row + headers
+exports.template = async (req, res) => {
+  try {
+    const wb = xlsx.utils.book_new();
+    const wsData = [
+      ['Students Template'],
+      ['Name', 'UID', 'USN', 'CGPA', 'sem']
+    ];
+    const ws = xlsx.utils.aoa_to_sheet(wsData);
+    xlsx.utils.book_append_sheet(wb, ws, 'Students');
+    const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Disposition', 'attachment; filename="students_template.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    return res.send(buf);
+  } catch (err) {
+    console.error('[Student Template] Error:', err);
+    return res.status(500).json({ error: 'Unable to generate template' });
+  }
+};
+
 exports.list = async (req, res) => {
   try {
     const deptid = req.user && req.user.deptid;
@@ -20,8 +40,9 @@ exports.list = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const deptid = req.user && req.user.deptid;
-    const instanceId = req.query.instanceId;
-    if (!deptid || !instanceId) return res.status(400).json({ error: 'Missing department or instance id' });
+    const rawInstance = req.query.instanceId ?? req.body.instanceId ?? req.body.instance_id ?? (req.user && (req.user.instanceId || req.user.instance_id));
+    const instanceId = rawInstance == null ? null : (Number.isInteger(Number(rawInstance)) ? Number(rawInstance) : null);
+    if (!deptid || instanceId == null) return res.status(400).json({ error: 'Missing department or instance id' });
     const data = req.body;
     console.log('[Student Create] Data:', { ...data, DeptID: deptid, instance_id: instanceId });
     const student = await studentsService.create({ ...data, DeptID: deptid, instance_id: instanceId });
@@ -36,9 +57,10 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const deptid = req.user && req.user.deptid;
-    const instanceId = req.query.instanceId;
+    const rawInstance = req.query.instanceId ?? req.body.instanceId ?? req.body.instance_id ?? (req.user && (req.user.instanceId || req.user.instance_id));
+    const instanceId = rawInstance == null ? null : (Number.isInteger(Number(rawInstance)) ? Number(rawInstance) : null);
     const studentId = req.params.id;
-    if (!deptid || !instanceId || !studentId) return res.status(400).json({ error: 'Missing required fields' });
+    if (!deptid || instanceId == null || !studentId) return res.status(400).json({ error: 'Missing required fields' });
     const data = req.body;
     const student = await studentsService.update(studentId, { ...data, DeptID: deptid, instance_id: instanceId });
     return res.json(student);
@@ -51,9 +73,10 @@ exports.update = async (req, res) => {
 exports.remove = async (req, res) => {
   try {
     const deptid = req.user && req.user.deptid;
-    const instanceId = req.query.instanceId;
+    const rawInstance = req.query.instanceId ?? req.body.instanceId ?? req.body.instance_id ?? (req.user && (req.user.instanceId || req.user.instance_id));
+    const instanceId = rawInstance == null ? null : (Number.isInteger(Number(rawInstance)) ? Number(rawInstance) : null);
     const studentId = req.params.id;
-    if (!deptid || !instanceId || !studentId) return res.status(400).json({ error: 'Missing required fields' });
+    if (!deptid || instanceId == null || !studentId) return res.status(400).json({ error: 'Missing required fields' });
     await studentsService.remove(studentId, deptid, instanceId);
     return res.json({ success: true });
   } catch (err) {
@@ -86,33 +109,44 @@ exports.upload = [
       const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const rows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
 
-      if (!rows || rows.length === 0) {
+      // Read as raw rows (arrays) so we can handle an optional title row above headers
+      const raw = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      if (!raw || raw.length === 0) {
         return res.status(400).json({ error: 'File contains no rows' });
       }
 
-      // Basic header presence check (case-insensitive)
-      const firstKeys = Object.keys(rows[0] || {});
-      const hasNameHeader = firstKeys.some((k) => /name|fullname/i.test(k));
-      const hasUIDHeader = firstKeys.some((k) => /uid/i.test(k));
-      const hasUSNHeader = firstKeys.some((k) => /usn/i.test(k));
-      if (!hasNameHeader || !hasUIDHeader || !hasUSNHeader) {
-        return res.status(400).json({ error: 'Missing required columns: Name, UID, USN' });
-      }
+      // Determine header row: either first row or second row (if first is a title)
+      const headerCandidates = (idx) => (raw[idx] || []).map((v) => String(v || '').trim());
+      const hasRequired = (arr) => {
+        const keys = arr.join(' ');
+        return /name|fullname/i.test(keys) && /uid/i.test(keys) && /usn/i.test(keys);
+      };
+
+      let headerRowIndex = -1;
+      if (hasRequired(headerCandidates(0))) headerRowIndex = 0;
+      else if (raw.length > 1 && hasRequired(headerCandidates(1))) headerRowIndex = 1;
+      else return res.status(400).json({ error: 'Missing required columns: Name, UID, USN' });
+
+      const headers = headerCandidates(headerRowIndex);
+      const dataArrays = raw.slice(headerRowIndex + 1);
+      const rows = dataArrays.map((arr) => {
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = arr[i] !== undefined ? arr[i] : ''; });
+        return obj;
+      });
 
       const created = [];
       let invalidRows = 0;
       let duplicateRows = 0;
       for (const r of rows) {
-        // Expect headers: Name, UID, USN, CGPA, sem, diploma (case-insensitive)
+        // Expect headers: Name, UID, USN, CGPA, sem (case-insensitive)
         const Name = r.Name || r.name || r.FullName || r.fullname || '';
         const UID = r.UID || r.uid || '';
         const USN = r.USN || r.usn || '';
         const CGPA = r.CGPA !== undefined ? Number(r.CGPA) : null;
         const sem = r.sem !== undefined ? Number(r.sem) : null;
-        const diploma = r.diploma !== undefined ? Number(r.diploma) : 0;
-
+        // diploma removed from student model
         if (!Name || !UID || !USN) {
           invalidRows++;
           continue; // skip invalid rows
@@ -137,7 +171,6 @@ exports.upload = [
             USN,
             CGPA,
             sem,
-            diploma,
             DeptID: deptid,
             instance_id: instanceId,
           });

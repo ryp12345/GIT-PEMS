@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { listAcademicYearInstances } from '../../api/hod/instance.api';
-import { listStudents, createStudent, updateStudent, deleteStudent, uploadStudentsExcel } from '../../api/hod/student.api';
+import { listStudents, createStudent, updateStudent, deleteStudent, uploadStudentsExcel, downloadStudentsTemplate } from '../../api/hod/student.api';
+import { listElectives, createElective, updateElective, deleteElective } from '../../api/hod/elective.api';
 
 const TABS = [
 	{ id: 'students', label: 'Students' },
@@ -29,7 +30,6 @@ function StudentsTab(props) {
 		USN: '',
 		CGPA: '',
 		sem: '',
-		diploma: '',
 	});
 	const [editId, setEditId] = useState(null);
 	const [error, setError] = useState('');
@@ -38,18 +38,20 @@ function StudentsTab(props) {
 	const [page, setPage] = useState(1);
 	const PAGE_SIZE = 10;
 	const { instanceId } = props;
+	const params = useParams();
+	const resolvedInstanceId = instanceId ?? (params.instanceId ? Number(params.instanceId) : null);
 
 	useEffect(() => {
-		if (!instanceId) return;
+		if (resolvedInstanceId == null) return;
 		(async () => {
 			try {
-				const res = await listStudents(instanceId);
+				const res = await listStudents(resolvedInstanceId);
 				setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
 			} catch {
 				setStudents([]);
 			}
 		})();
-	}, [instanceId]);
+	}, [resolvedInstanceId]);
 
 	function openModal() {
 	setForm({
@@ -57,8 +59,7 @@ function StudentsTab(props) {
 		UID: '',
 		USN: '',
 		CGPA: '',
-		sem: '',
-		diploma: '',
+			sem: '',
 	});
 	setEditId(null);
 	setError('');
@@ -72,20 +73,19 @@ function openEditModal(student) {
 		USN: student.USN,
 		CGPA: student.CGPA,
 		sem: student.sem,
-		diploma: student.diploma,
 	});
 	setEditId(student.id);
 	setError('');
 	setIsModalOpen(true);
 	}
 
-    async function handleDelete(id) {
+	async function handleDelete(id) {
         if (!window.confirm('Remove this student?')) return;
         try {
-            await deleteStudent(instanceId, id);
+			await deleteStudent(resolvedInstanceId, id);
             showNotification('Student removed successfully');
-            const res = await listStudents(instanceId);
-            setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
+			const res = await listStudents(resolvedInstanceId);
+			setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
         } catch (err) {
             showNotification(err?.response?.data?.error || 'Unable to delete student', 'error');
         }
@@ -105,28 +105,28 @@ function openEditModal(student) {
 	if (isEmpty(form.USN)) { setError('USN is required'); return; }
 	if (isEmpty(form.CGPA)) { setError('CGPA is required'); return; }
 	if (isEmpty(form.sem)) { setError('Semester is required'); return; }
-	if (isEmpty(form.diploma) && form.diploma !== 0) { setError('Diploma is required'); return; }
-	(async () => {
-		try {
-			if (editId) {
-				await updateStudent(instanceId, editId, {
-					...form,
-					CGPA: Number(form.CGPA),
-					sem: Number(form.sem),
-					diploma: Number(form.diploma),
-				});
-					showNotification('Student information updated successfully');
-			} else {
-				await createStudent(instanceId, {
-					...form,
-					CGPA: Number(form.CGPA),
-					sem: Number(form.sem),
-					diploma: Number(form.diploma),
-				});
-					showNotification('Student added successfully');
-			}
-				const res = await listStudents(instanceId);
-				setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
+
+			(async () => {
+				try {
+					if (editId) {
+						await updateStudent(resolvedInstanceId, editId, {
+							...form,
+							CGPA: Number(form.CGPA),
+							sem: Number(form.sem),
+							// diploma removed
+						});
+							showNotification('Student information updated successfully');
+					} else {
+						await createStudent(resolvedInstanceId, {
+							...form,
+							CGPA: Number(form.CGPA),
+							sem: Number(form.sem),
+							// diploma removed
+						});
+							showNotification('Student added successfully');
+					}
+						const res = await listStudents(resolvedInstanceId);
+						setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
 			closeModal();
 		} catch (err) {
 			setError(err?.response?.data?.error || 'Operation failed');
@@ -152,12 +152,12 @@ function openEditModal(student) {
 		try {
 			const formData = new FormData();
 			formData.append('file', fileToUpload);
-			const res = await uploadStudentsExcel(instanceId, formData);
+			const res = await uploadStudentsExcel(resolvedInstanceId, formData);
 			const uploadedCount = res.data?.count || (res.data?.items || []).length || 0;
 			const invalidCount = res.data?.invalid || 0;
 			if (uploadedCount > 0) {
 				setUploadResult({ success: true, message: `Upload successful: ${uploadedCount} students${invalidCount ? `; ${invalidCount} invalid rows skipped` : ''}`, data: res.data });
-				const listRes = await listStudents(instanceId);
+				const listRes = await listStudents(resolvedInstanceId);
 				setStudents((listRes.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
 				showNotification(`Uploaded ${uploadedCount} students${invalidCount ? `, ${invalidCount} invalid rows skipped` : ''}`);
 				setSelectedFile(null);
@@ -186,7 +186,7 @@ function openEditModal(student) {
 				s.USN.toLowerCase().includes(q) ||
 				String(s.CGPA).toLowerCase().includes(q) ||
 				String(s.sem).toLowerCase().includes(q) ||
-				String(s.diploma).toLowerCase().includes(q)
+								false
 			);
 		}, [students, search]);
 
@@ -216,15 +216,33 @@ function openEditModal(student) {
 					</svg>
 				</div>
 				<div className="flex gap-2 flex-wrap">
-					<a
-						href="/students_template.csv"
-						download
+					<button
+						type="button"
+						onClick={async () => {
+							try {
+								const res = await downloadStudentsTemplate();
+								const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+								const url = window.URL.createObjectURL(blob);
+								const a = document.createElement('a');
+								a.href = url;
+								// try to derive filename from content-disposition
+								const cd = res.headers['content-disposition'] || '';
+								const match = cd.match(/filename="?([^";]+)"?/);
+								a.download = match ? match[1] : 'students_template.xlsx';
+								document.body.appendChild(a);
+								a.click();
+								a.remove();
+								window.URL.revokeObjectURL(url);
+							} catch (err) {
+								showNotification(err?.response?.data?.error || 'Unable to download template', 'error');
+							}
+						}}
 						className="flex items-center gap-2 rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
-						title="Download CSV Template"
+						title="Download Template"
 					>
 						<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v12m0 0l-4-4m4 4l4-4m-8 8h8" /></svg>
 						Download Template
-					</a>
+					</button>
 
 					<div className="flex items-center gap-2">
 						<input
@@ -275,7 +293,7 @@ function openEditModal(student) {
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">DeptID</th>
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">CGPA</th>
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Semester</th>
-							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Diploma</th>
+
 							  {/* Timestamp column removed */}
 							<th className="px-3 py-3 text-center text-xs font-medium uppercase tracking-wider text-white">Actions</th>
 						</tr>
@@ -293,7 +311,7 @@ function openEditModal(student) {
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{s.DeptID}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{s.CGPA}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{s.sem}</td>
-									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{s.diploma}</td>
+
 									  {/* Timestamp cell removed */}
 									 <td className="whitespace-nowrap px-3 py-3 text-center flex gap-2 justify-center">
 										 <button onClick={() => openEditModal(s)} className="rounded-lg bg-blue-600 p-1.5 text-white hover:bg-blue-700" title="Edit">
@@ -366,13 +384,7 @@ function openEditModal(student) {
 								       <option value="8">8</option>
 							       </select>
 						       </Field>
-						<Field label="Diploma *">
-							<select value={form.diploma} onChange={(e) => setForm((p) => ({ ...p, diploma: e.target.value }))} className={inputCls} required>
-								<option value="">Select</option>
-								<option value="0">No</option>
-								<option value="1">Yes</option>
-							</select>
-						</Field>
+
 						{/* Timestamp field removed */}
 						<div className="sm:col-span-2"><ModalFooter onCancel={closeModal} submitLabel={editId ? 'Update Student' : 'Add Student'} /></div>
 					</form>
@@ -384,7 +396,7 @@ function openEditModal(student) {
 
 // ─── Elective Groups ─────────────────────────────────────────────────────────
 
-function GroupsTab({ openElectives }) {
+function GroupsTab({ openElectives, instanceId }) {
 	const [groups, setGroups] = useState([]);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [form, setForm] = useState({ groupName: '', semester: '' });
@@ -407,13 +419,15 @@ function GroupsTab({ openElectives }) {
 	}
 
 	// Show the ElectivesTab content in the Elective Groups tab
-	return <ElectivesTab />;
+	return <ElectivesTab instanceId={instanceId} />;
 }
 
 // ─── Electives ───────────────────────────────────────────────────────────────
 
 
-function ElectivesTab() {
+function ElectivesTab({ instanceId }) {
+	const params = useParams();
+	const resolvedInstanceId = instanceId ?? (params.instanceId ? Number(params.instanceId) : null);
 	const [groups, setGroups] = useState([]);
 	const [electives, setElectives] = useState([]);
 	const [isModalOpen, setIsModalOpen] = useState(false);
@@ -426,12 +440,36 @@ function ElectivesTab() {
 		max: '',
 		preReq: '',
 		compulsoryPrereq: false,
-		diploma: false,
 		sem: '',
 	});
 	const [error, setError] = useState('');
 
-	function openModal(elective) {
+		const normalizeElectives = (rows) => (Array.isArray(rows) ? rows.map((r) => ({
+			id: r.id || r.ID || r.id,
+			electiveCode: r.coursecode || r.course_code || r.courseCode || '',
+			electiveName: r.courseName || r.coursename || r.courseName || r.course_name || '',
+			groupId: r.electivegroup || r.elective_group || '',
+			division: r.division || r.div || '',
+			max: r.max || r.max_capacity || r.max || 0,
+			preReq: r.pre_req || r.preReq || r.pre || '',
+			compulsoryPrereq: Number(r.compulsory_prereq || r.compulsoryPrereq || 0) === 1,
+			sem: r.sem || r.semester || '',
+		})) : []);
+
+		useEffect(() => {
+			if (resolvedInstanceId == null) return;
+			(async () => {
+				try {
+					const res = await listElectives(resolvedInstanceId);
+					const rows = res.data.items || res.data || [];
+					setElectives(normalizeElectives(rows));
+				} catch (err) {
+					setElectives([]);
+				}
+			})();
+		}, [resolvedInstanceId]);
+
+		function openModal(elective) {
 		if (elective) {
 			setForm({
 				electiveCode: elective.electiveCode || '',
@@ -441,7 +479,7 @@ function ElectivesTab() {
 				max: elective.max?.toString() || '',
 				preReq: elective.preReq || '',
 				compulsoryPrereq: !!elective.compulsoryPrereq,
-				diploma: !!elective.diploma,
+				// diploma removed
 				sem: elective.sem?.toString() || '',
 			});
 			setEditId(elective.id);
@@ -454,7 +492,7 @@ function ElectivesTab() {
 				max: '',
 				preReq: '',
 				compulsoryPrereq: false,
-				diploma: false,
+				// diploma removed
 				sem: '',
 			});
 			setEditId(null);
@@ -469,7 +507,7 @@ function ElectivesTab() {
 		setEditId(null);
 	}
 
-	function handleSubmit(e) {
+		async function handleSubmit(e) {
 		e.preventDefault();
 		if (!form.electiveCode.trim()) { setError('Elective code is required'); return; }
 		if (!form.electiveName.trim()) { setError('Elective name is required'); return; }
@@ -477,42 +515,42 @@ function ElectivesTab() {
 		if (!form.division) { setError('Division is required'); return; }
 		if (!form.max) { setError('Max strength is required'); return; }
 		if (!form.sem) { setError('Semester is required'); return; }
-		// Add or update
-		if (editId) {
-			setElectives((prev) => prev.map((el) => el.id === editId ? {
-				...el,
-				...form,
-				groupId: form.groupId,
-				division: form.division,
-				max: form.max,
-				preReq: form.preReq,
-				compulsoryPrereq: !!form.compulsoryPrereq,
-				diploma: !!form.diploma,
-				sem: form.sem,
-			} : el));
-		} else {
-			setElectives((prev) => [
-				...prev,
-				{
-					id: Date.now(),
-					...form,
-					groupId: form.groupId,
-					division: form.division,
-					max: form.max,
-					preReq: form.preReq,
-					compulsoryPrereq: !!form.compulsoryPrereq,
-					diploma: !!form.diploma,
-					sem: form.sem,
-				},
-			]);
-		}
-		closeModal();
+				try {
+					const payload = {
+						coursecode: form.electiveCode,
+						courseName: form.electiveName,
+						electivegroup: form.groupId,
+						division: form.division,
+						max: form.max,
+						pre_req: form.preReq,
+						compulsory_prereq: form.compulsoryPrereq ? 1 : 0,
+						sem: form.sem,
+					};
+					if (editId) {
+						await updateElective(resolvedInstanceId, editId, payload);
+						const res = await listElectives(resolvedInstanceId);
+						setElectives(normalizeElectives(res.data.items || res.data || []));
+					} else {
+						await createElective(resolvedInstanceId, payload);
+						const res = await listElectives(resolvedInstanceId);
+						setElectives(normalizeElectives(res.data.items || res.data || []));
+					}
+					closeModal();
+				} catch (err) {
+					setError(err?.response?.data?.error || 'Operation failed');
+				}
 	}
 
-	function handleDelete(id) {
-		if (!window.confirm('Remove this elective?')) return;
-		setElectives((prev) => prev.filter((el) => el.id !== id));
-	}
+		async function handleDelete(id) {
+				if (!window.confirm('Remove this elective?')) return;
+				try {
+					  await deleteElective(resolvedInstanceId, id);
+					  const res = await listElectives(resolvedInstanceId);
+					  setElectives(normalizeElectives(res.data.items || res.data || []));
+				} catch (err) {
+					alert(err?.response?.data?.error || 'Unable to delete elective');
+				}
+		}
 
 	const getGroupName = (groupId) => {
 		if (!groupId && groupId !== 0) return '-';
@@ -544,14 +582,13 @@ function ElectivesTab() {
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Max</th>
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Pre-Req</th>
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Comp. Prereq</th>
-							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Diploma</th>
 							<th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Sem</th>
 							<th className="px-3 py-3 text-center text-xs font-medium uppercase tracking-wider text-white">Actions</th>
 						</tr>
 					</thead>
 					<tbody className="divide-y divide-gray-100 bg-white">
 						{electives.length === 0 ? (
-							<tr><td colSpan="11" className="py-10 text-center text-sm text-gray-500">No electives added yet</td></tr>
+							<tr><td colSpan="10" className="py-10 text-center text-sm text-gray-500">No electives added yet</td></tr>
 						) : (
 							electives.map((el, i) => (
 								<tr key={el.id} className={`transition-colors hover:bg-blue-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
@@ -563,7 +600,6 @@ function ElectivesTab() {
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{el.max}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{el.preReq}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{el.compulsoryPrereq ? 'Yes' : 'No'}</td>
-									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{el.diploma ? 'Yes' : 'No'}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{el.sem}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-center flex gap-2 justify-center">
 										<button onClick={() => openModal(el)} className="rounded-lg bg-yellow-500 p-1.5 text-white hover:bg-yellow-600" title="Edit">
@@ -634,13 +670,19 @@ function ElectivesTab() {
 								<input type="checkbox" checked={form.compulsoryPrereq} onChange={e => setForm(p => ({ ...p, compulsoryPrereq: e.target.checked }))} />
 								Compulsory Prerequisite
 							</label>
-							<label className="flex items-center gap-2">
-								<input type="checkbox" checked={form.diploma} onChange={e => setForm(p => ({ ...p, diploma: e.target.checked }))} />
-								Diploma
-							</label>
 						</div>
 						<Field label="Semester *">
-							<input type="number" value={form.sem} onChange={(e) => setForm((p) => ({ ...p, sem: e.target.value }))} className={inputCls} placeholder="e.g. 6" required min={1} />
+							<select value={form.sem} onChange={(e) => setForm((p) => ({ ...p, sem: e.target.value }))} className={inputCls} required>
+								<option value="">Select</option>
+								<option value="1">1</option>
+								<option value="2">2</option>
+								<option value="3">3</option>
+								<option value="4">4</option>
+								<option value="5">5</option>
+								<option value="6">6</option>
+								<option value="7">7</option>
+								<option value="8">8</option>
+							</select>
 						</Field>
 						<ModalFooter onCancel={closeModal} submitLabel={editId ? 'Update Elective' : 'Add Elective'} />
 					</form>
@@ -657,10 +699,13 @@ function AllocationTab() {
 	const [electives] = useState([]);
 	const [allocations, setAllocations] = useState([]);
 	const [isModalOpen, setIsModalOpen] = useState(false);
+	const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
 	const [form, setForm] = useState({ studentId: '', electiveId: '' });
 	const [error, setError] = useState('');
 
 	function openModal() { setForm({ studentId: '', electiveId: '' }); setError(''); setIsModalOpen(true); }
+	function openSuccessModal() { setIsSuccessModalOpen(true); }
+	function closeSuccessModal() { setIsSuccessModalOpen(false); }
 	function closeModal() { setIsModalOpen(false); setError(''); }
 
 	function handleSubmit(e) {
@@ -682,7 +727,7 @@ function AllocationTab() {
 	return (
 		<>
 			<div className="mb-4 flex justify-end">
-				<button onClick={openModal} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+						<button onClick={openSuccessModal} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
 					<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
 						<path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
 					</svg>
@@ -743,6 +788,15 @@ function AllocationTab() {
 						</Field>
 						<ModalFooter onCancel={closeModal} submitLabel="Allocate" />
 					</form>
+				</Modal>
+			) : null}
+
+			{isSuccessModalOpen ? (
+				<Modal title="Allocation" onClose={closeSuccessModal}>
+					<div className="mb-4 text-sm text-gray-700">Allocation executed successfully.</div>
+					<div className="flex justify-end pt-2">
+						<button type="button" onClick={closeSuccessModal} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700">OK</button>
+					</div>
 				</Modal>
 			) : null}
 		</>
