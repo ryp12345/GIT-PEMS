@@ -286,7 +286,7 @@ function openEditModal(student) {
 					</div>
 				)}
 			</div>
-			<div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+			<div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center text-base font-semibold text-blue-900 sm:text-lg">
 				{students.length === 0
 					? 'All students have registered their elective choice. You are ready to do the allocations.'
 					: 'List of students who have not registered their elective preferences'}

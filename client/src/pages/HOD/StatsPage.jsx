@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { getElectivesStats, updateMinMax } from '../../api/hod/stats.api';
 import { useAuth } from '../../context/AuthContext';
 
+const PAGE_SIZE = 10;
+
 export default function StatsPage() {
   const { user } = useAuth();
   const [groups, setGroups] = useState([]);
@@ -10,6 +12,8 @@ export default function StatsPage() {
   const [edits, setEdits] = useState({});
   const [error, setError] = useState('');
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+  const [searchByGroup, setSearchByGroup] = useState({});
+  const [pageByGroup, setPageByGroup] = useState({});
 
   useEffect(() => {
     load();
@@ -20,7 +24,12 @@ export default function StatsPage() {
     setError('');
     try {
       const res = await getElectivesStats();
-      setGroups(res.data.groups || []);
+      const nextGroups = res.data.groups || [];
+      setGroups(nextGroups);
+      setPageByGroup((prev) => nextGroups.reduce((acc, group) => {
+        acc[group.electivegroup] = prev[group.electivegroup] || 1;
+        return acc;
+      }, {}));
     } catch (err) {
       setError(err?.response?.data?.error || err.message || 'Failed to load');
     } finally {
@@ -36,6 +45,47 @@ export default function StatsPage() {
         [field]: value
       }
     }));
+  }
+
+  function handleSearchChange(groupName, value) {
+    setSearchByGroup((prev) => ({
+      ...prev,
+      [groupName]: value
+    }));
+    setPageByGroup((prev) => ({
+      ...prev,
+      [groupName]: 1
+    }));
+  }
+
+  function handlePageChange(groupName, nextPage) {
+    setPageByGroup((prev) => ({
+      ...prev,
+      [groupName]: nextPage
+    }));
+  }
+
+  function getFilteredCourses(group) {
+    const search = String(searchByGroup[group.electivegroup] || '').trim().toLowerCase();
+    if (!search) return group.courses || [];
+
+    return (group.courses || []).filter((course) => {
+      const prefs = course.prefs || {};
+      return [
+        course.coursecode,
+        course.courseName,
+        course.allocation_status,
+        course.cgpa_cutoff,
+        course.total_allocations,
+        course.min,
+        course.max,
+        prefs[1],
+        prefs[2],
+        prefs[3],
+        prefs[4],
+        prefs[5]
+      ].some((value) => String(value ?? '').toLowerCase().includes(search));
+    });
   }
 
   async function handleSave() {
@@ -74,7 +124,7 @@ export default function StatsPage() {
         </div>
       ) : null}
       <div className="flex flex-col">
-        <div className="text-lg font-semibold text-slate-900 text-left">{`Welcome ${user?.name || ''}`}</div>
+        {/* <div className="text-lg font-semibold text-slate-900 text-left">{`Welcome ${user?.name || ''}`}</div> */}
         <h2 className="text-xl font-semibold text-slate-900 text-center mt-2">{user?.name ? `${user.name} Students Elective List` : 'Students Elective List'}</h2>
       </div>
 
@@ -83,7 +133,25 @@ export default function StatsPage() {
 
       {groups.map((g) => (
         <div key={g.electivegroup} className="mt-6">
+          {(() => {
+            const filteredCourses = getFilteredCourses(g);
+            const totalPages = Math.max(1, Math.ceil(filteredCourses.length / PAGE_SIZE));
+            const currentPage = Math.min(pageByGroup[g.electivegroup] || 1, totalPages);
+            const paginatedCourses = filteredCourses.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+            return (
+              <>
           <h3 className="text-lg font-semibold">{g.electivegroup}</h3>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <input
+              type="text"
+              value={searchByGroup[g.electivegroup] || ''}
+              onChange={(e) => handleSearchChange(g.electivegroup, e.target.value)}
+              placeholder="Search course, status, cutoff..."
+              className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:max-w-sm"
+            />
+            <div className="text-sm text-gray-600 sm:text-right">Total rows: {g.courses?.length || 0}</div>
+          </div>
           <div className="overflow-x-auto rounded-xl border border-gray-200 mt-3">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-blue-600 text-white">
@@ -103,7 +171,11 @@ export default function StatsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
-                {g.courses.map((c) => (
+                {paginatedCourses.length === 0 ? (
+                  <tr>
+                    <td colSpan="12" className="px-3 py-6 text-center text-sm text-gray-500">No courses match your search</td>
+                  </tr>
+                ) : paginatedCourses.map((c) => (
                   <tr key={c.coursecode}>
                     <td className="px-3 py-2">{c.coursecode}</td>
                     <td className="px-3 py-2">{c.courseName}</td>
@@ -126,6 +198,30 @@ export default function StatsPage() {
               </tbody>
             </table>
           </div>
+          {filteredCourses.length > PAGE_SIZE ? (
+            <div className="mt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+                onClick={() => handlePageChange(g.electivegroup, Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+              >
+                Prev
+              </button>
+              <span className="text-sm text-gray-600">Page {currentPage} of {totalPages}</span>
+              <button
+                type="button"
+                className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+                onClick={() => handlePageChange(g.electivegroup, Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          ) : null}
+              </>
+            );
+          })()}
         </div>
       ))}
 

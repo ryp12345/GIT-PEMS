@@ -32,8 +32,10 @@ async function getStudentListsForCoursecodes(coursecodes, deptid) {
     `SELECT ep.coursecode, ep.preference, ep.status, ep."USN" AS usn, s."Name" AS name
      FROM public.elective_preferences ep
      JOIN public.students s ON s."USN" = ep."USN"
-     WHERE ep.coursecode = ANY($1) AND s."DeptID" = $2
-     ORDER BY ep.coursecode, ep.preference, s."USN"`,
+     WHERE ep.coursecode = ANY($1)
+       AND s."DeptID" = $2
+       AND ep.preference = ep.status
+     ORDER BY ep.coursecode, s."USN"`,
     [coursecodes, deptid]
   );
   return res.rows.map(r => ({ coursecode: r.coursecode, preference: Number(r.preference), status: Number(r.status), usn: r.usn, name: r.name }));
