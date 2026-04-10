@@ -24,7 +24,19 @@ function getCurrentAcademicYearLabel() {
 
 function formatDateOnly(value) {
 	if (!value) return '';
-	return String(value).slice(0, 10);
+	// Parse YYYY-MM-DD as local date to avoid timezone issues
+	let date;
+	if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+		const [year, month, day] = value.split('T')[0].split('-');
+		date = new Date(Number(year), Number(month) - 1, Number(day));
+	} else {
+		date = new Date(value);
+	}
+	if (isNaN(date.getTime())) return '';
+	const day = String(date.getDate()).padStart(2, '0');
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const year = String(date.getFullYear());
+	return `${day}/${month}/${year}`;
 }
 
 export default function ElectiveInstancePage() {
@@ -81,13 +93,28 @@ export default function ElectiveInstancePage() {
 		setIsModalOpen(true);
 	}
 
+	function toInputDate(value) {
+		if (!value) return '';
+		// Handles both Date and string (YYYY-MM-DD or ISO)
+		let date;
+		if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+			return value.split('T')[0];
+		}
+		date = new Date(value);
+		if (isNaN(date.getTime())) return '';
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	}
+
 	function openEditModal(instance) {
 		setEditingId(instance.id);
 		setForm({
 			academicYear: instance.academicYear,
 			title: instance.title,
-			startDate: formatDateOnly(instance.startDate),
-			endDate: formatDateOnly(instance.endDate),
+			startDate: toInputDate(instance.startDate),
+			endDate: toInputDate(instance.endDate),
 			isActive: instance.isActive
 		});
 		setError('');
@@ -106,8 +133,8 @@ export default function ElectiveInstancePage() {
 				await updateAcademicYearInstance(editingId, {
 					academicYear: form.academicYear,
 					title: form.title,
-					startDate: formatDateOnly(form.startDate) || null,
-					endDate: formatDateOnly(form.endDate) || null
+					startDate: form.startDate || null,
+					endDate: form.endDate || null
 				});
 				if (form.isActive) await activateAcademicYearInstance(editingId);
 				showNotification('Academic year instance updated successfully');
@@ -115,9 +142,9 @@ export default function ElectiveInstancePage() {
 				await createAcademicYearInstance({
 					academicYear: form.academicYear,
 					title: form.title,
-					startDate: formatDateOnly(form.startDate) || null,
-					endDate: formatDateOnly(form.endDate) || null,
-					isActive: form.isActive
+					startDate: form.startDate || null,
+					endDate: form.endDate || null,
+					isActive: true // Always set true for add modal
 				});
 				showNotification('Academic year instance created successfully');
 			}
@@ -232,7 +259,8 @@ export default function ElectiveInstancePage() {
 								<th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-white">S.No</th>
 								<th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-white">Title</th>
 								<th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-white">Academic Year</th>
-								<th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-white">Duration</th>
+								<th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-white">Start Date</th>
+								<th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-white">End Date</th>
 								<th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-white">Status</th>
 								<th className="px-6 py-4 text-center text-xs font-medium uppercase tracking-wider text-white">Actions</th>
 							</tr>
@@ -248,9 +276,8 @@ export default function ElectiveInstancePage() {
 										<td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{(page - 1) * PAGE_SIZE + index + 1}</td>
 										<td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{item.title}</td>
 										<td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700">{item.academicYear}</td>
-										<td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700">
-											{formatDateOnly(item.startDate) || '-'} to {formatDateOnly(item.endDate) || '-'}
-										</td>
+										<td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700">{formatDateOnly(item.startDate) || '-'}</td>
+										<td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700">{formatDateOnly(item.endDate) || '-'}</td>
 										<td className="whitespace-nowrap px-6 py-4 text-sm">
 											<span className={`rounded-full px-3 py-1 text-xs font-medium ${item.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
 												{item.isActive ? 'Active' : 'Inactive'}
@@ -279,18 +306,7 @@ export default function ElectiveInstancePage() {
 														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
 													</svg>
 												</button>
-												{!item.isActive ? (
-													<button
-														type="button"
-														onClick={() => handleActivate(item.id)}
-														className="rounded-lg bg-green-600 p-2 text-white transition-colors duration-200 hover:bg-green-700"
-														title="Set as Active"
-													>
-														<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-															<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-														</svg>
-													</button>
-												) : null}
+												{/* Removed 'Set as Active' tickmark button */}
 												<button
 													type="button"
 													onClick={() => handleDelete(item.id)}
@@ -415,17 +431,19 @@ export default function ElectiveInstancePage() {
 											/>
 										</div>
 
-										<div className="flex items-center gap-3 md:col-span-2">
-											<input
-												type="checkbox"
-												name="isActive"
-												id="isActive"
-												checked={form.isActive}
-												onChange={onFieldChange}
-												className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-											/>
-											<label htmlFor="isActive" className="text-sm font-medium text-gray-700">Set as active instance</label>
-										</div>
+										{editingId && (
+											<div className="flex items-center gap-3 md:col-span-2">
+												<input
+													type="checkbox"
+													name="isActive"
+													id="isActive"
+													checked={form.isActive}
+													onChange={onFieldChange}
+													className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+												/>
+												<label htmlFor="isActive" className="text-sm font-medium text-gray-700">Set as active instance</label>
+											</div>
+										)}
 									</div>
 
 									<div className="flex justify-end gap-3 pt-2">

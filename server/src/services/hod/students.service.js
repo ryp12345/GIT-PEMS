@@ -8,6 +8,10 @@ async function listByInstance(instanceId, deptid) {
   return studentsModel.getStudentsByInstance(instanceId, deptid);
 }
 
+async function listPendingByInstance(instanceId, deptid) {
+  return studentsModel.getPendingStudentsByInstance(instanceId, deptid);
+}
+
 async function getByUsn(usn) {
   return studentsModel.findByUsn(usn);
 }
@@ -31,4 +35,4 @@ async function existsByUsnOrUid(usn, uid, deptid, instanceId) {
   return !!byUid;
 }
 
-module.exports = { listByDepartment, listByInstance, getByUsn, create, update, remove, existsByUsnOrUid };
+module.exports = { listByDepartment, listByInstance, listPendingByInstance, getByUsn, create, update, remove, existsByUsnOrUid };

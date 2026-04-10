@@ -16,9 +16,19 @@ async function studentListsForCoursecodes(coursecodes, deptid) {
   return preferencesModel.getStudentListsForCoursecodes(coursecodes, deptid);
 }
 
+async function unallocatedStudentsByGroup(deptid, electivegroup) {
+  return preferencesModel.getUnallocatedStudentsByGroup(deptid, electivegroup);
+}
+
+async function pendingStudentsByDept(deptid) {
+  return preferencesModel.getPendingStudentsByDept(deptid);
+}
+
 module.exports = {
   listByCoursecode,
   listByCoursecodes,
   countsForCoursecodes,
-  studentListsForCoursecodes
+  studentListsForCoursecodes,
+  unallocatedStudentsByGroup
+  ,pendingStudentsByDept
 };

@@ -29,7 +29,7 @@ exports.listElectiveStudents = async (req, res) => {
     const deptid = req.user && req.user.deptid;
     if (!deptid) return res.status(401).json({ error: 'Missing department id' });
     const data = await require('../../services/hod/stats.service').listElectiveStudents(deptid);
-    return res.json({ groups: data });
+    return res.json(data);
   } catch (error) {
     return res.status(400).json({ error: error.message || 'Unable to fetch elective students' });
   }

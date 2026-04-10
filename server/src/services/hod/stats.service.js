@@ -60,7 +60,16 @@ async function listElectiveStudents(deptid) {
     result.push({ electivegroup: g, courses: coursesWithStudents });
   }
 
-  return result;
+  const allocatedGroups = await electivesModel.getDistinctGroupsWithAllocations(deptid);
+  const unallocatedGroups = [];
+  for (const g of allocatedGroups) {
+    const students = await prefsService.unallocatedStudentsByGroup(deptid, g);
+    unallocatedGroups.push({ electivegroup: g, students });
+  }
+
+  const pendingStudents = await prefsService.pendingStudentsByDept(deptid);
+
+  return { groups: result, unallocatedGroups, pendingStudents };
 }
 
 module.exports = {

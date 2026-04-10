@@ -41,12 +41,20 @@ function StudentsTab(props) {
 	const params = useParams();
 	const resolvedInstanceId = instanceId ?? (params.instanceId ? Number(params.instanceId) : null);
 
+	async function refreshStudents() {
+		if (resolvedInstanceId == null) {
+			setStudents([]);
+			return;
+		}
+		const res = await listStudents(resolvedInstanceId, { pendingOnly: true });
+		setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
+	}
+
 	useEffect(() => {
 		if (resolvedInstanceId == null) return;
 		(async () => {
 			try {
-				const res = await listStudents(resolvedInstanceId);
-				setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
+				await refreshStudents();
 			} catch {
 				setStudents([]);
 			}
@@ -84,8 +92,7 @@ function openEditModal(student) {
         try {
 			await deleteStudent(resolvedInstanceId, id);
             showNotification('Student removed successfully');
-			const res = await listStudents(resolvedInstanceId);
-			setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
+			await refreshStudents();
         } catch (err) {
             showNotification(err?.response?.data?.error || 'Unable to delete student', 'error');
         }
@@ -125,8 +132,7 @@ function openEditModal(student) {
 						});
 							showNotification('Student added successfully');
 					}
-						const res = await listStudents(resolvedInstanceId);
-						setStudents((res.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
+						await refreshStudents();
 			closeModal();
 		} catch (err) {
 			setError(err?.response?.data?.error || 'Operation failed');
@@ -157,8 +163,7 @@ function openEditModal(student) {
 			const invalidCount = res.data?.invalid || 0;
 			if (uploadedCount > 0) {
 				setUploadResult({ success: true, message: `Upload successful: ${uploadedCount} students${invalidCount ? `; ${invalidCount} invalid rows skipped` : ''}`, data: res.data });
-				const listRes = await listStudents(resolvedInstanceId);
-				setStudents((listRes.data.items || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0)));
+				await refreshStudents();
 				showNotification(`Uploaded ${uploadedCount} students${invalidCount ? `, ${invalidCount} invalid rows skipped` : ''}`);
 				setSelectedFile(null);
 				if (fileInputRef.current) fileInputRef.current.value = '';
@@ -281,6 +286,11 @@ function openEditModal(student) {
 					</div>
 				)}
 			</div>
+			<div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+				{students.length === 0
+					? 'All students have registered their elective choice. You are ready to do the allocations.'
+					: 'List of students who have not registered their elective preferences'}
+			</div>
 
 			<div className="overflow-x-auto rounded-xl border border-gray-200">
 				<table className="min-w-full divide-y divide-gray-200">
@@ -300,7 +310,7 @@ function openEditModal(student) {
 					</thead>
 					<tbody className="divide-y divide-gray-100 bg-white">
 						{paginated.length === 0 ? (
-							<tr><td colSpan="9" className="py-10 text-center text-sm text-gray-500">No students found</td></tr>
+							<tr><td colSpan="9" className="py-10 text-center text-sm text-gray-500">{students.length === 0 ? 'No pending students found' : 'No students match your search'}</td></tr>
 						) : (
 							paginated.map((s, i) => (
 								<tr key={s.id} className={`transition-colors hover:bg-blue-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
@@ -430,6 +440,8 @@ function ElectivesTab({ instanceId }) {
 	const resolvedInstanceId = instanceId ?? (params.instanceId ? Number(params.instanceId) : null);
 	const [groups, setGroups] = useState([]);
 	const [electives, setElectives] = useState([]);
+	const [deletingId, setDeletingId] = useState(null);
+	const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [editId, setEditId] = useState(null);
 	const [form, setForm] = useState({
@@ -444,8 +456,13 @@ function ElectivesTab({ instanceId }) {
 	});
 	const [error, setError] = useState('');
 
+	function showNotification(message, type = 'success') {
+		setNotification({ show: true, message, type });
+		setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000);
+	}
+
 		const normalizeElectives = (rows) => (Array.isArray(rows) ? rows.map((r) => ({
-			id: r.id || r.ID || r.id,
+			id: r.id ?? r.ID ?? r.Id ?? null,
 			electiveCode: r.coursecode || r.course_code || r.courseCode || '',
 			electiveName: r.courseName || r.coursename || r.courseName || r.course_name || '',
 			groupId: r.electivegroup || r.elective_group || '',
@@ -515,14 +532,21 @@ function ElectivesTab({ instanceId }) {
 		if (!form.division) { setError('Division is required'); return; }
 		if (!form.max) { setError('Max strength is required'); return; }
 		if (!form.sem) { setError('Semester is required'); return; }
+		setError('');
 				try {
 					const payload = {
+						// send both naming styles to be compatible with backend expectations
+						electiveCode: form.electiveCode,
 						coursecode: form.electiveCode,
+						electiveName: form.electiveName,
 						courseName: form.electiveName,
+						groupId: form.groupId,
 						electivegroup: form.groupId,
 						division: form.division,
 						max: form.max,
+						preReq: form.preReq,
 						pre_req: form.preReq,
+						compulsoryPrereq: form.compulsoryPrereq ? 1 : 0,
 						compulsory_prereq: form.compulsoryPrereq ? 1 : 0,
 						sem: form.sem,
 					};
@@ -530,25 +554,40 @@ function ElectivesTab({ instanceId }) {
 						await updateElective(resolvedInstanceId, editId, payload);
 						const res = await listElectives(resolvedInstanceId);
 						setElectives(normalizeElectives(res.data.items || res.data || []));
+						showNotification('Elective updated successfully');
 					} else {
 						await createElective(resolvedInstanceId, payload);
 						const res = await listElectives(resolvedInstanceId);
 						setElectives(normalizeElectives(res.data.items || res.data || []));
+						showNotification('Elective added successfully');
 					}
 					closeModal();
 				} catch (err) {
-					setError(err?.response?.data?.error || 'Operation failed');
+					const message = err?.response?.data?.error || 'Operation failed';
+					setError(message);
+					showNotification(message, 'error');
 				}
 	}
 
 		async function handleDelete(id) {
+				const normalizedId = Number(id);
+				if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
+					showNotification('Unable to delete: invalid elective id', 'error');
+					return;
+				}
 				if (!window.confirm('Remove this elective?')) return;
 				try {
-					  await deleteElective(resolvedInstanceId, id);
-					  const res = await listElectives(resolvedInstanceId);
-					  setElectives(normalizeElectives(res.data.items || res.data || []));
+					setDeletingId(normalizedId);
+					await deleteElective(resolvedInstanceId, normalizedId);
+					setElectives((prev) => prev.filter((el) => Number(el.id) !== normalizedId));
+					const res = await listElectives(resolvedInstanceId);
+					setElectives(normalizeElectives(res.data.items || res.data || []));
+					showNotification('Elective deleted successfully');
 				} catch (err) {
-					alert(err?.response?.data?.error || 'Unable to delete elective');
+					const message = err?.response?.data?.error || err?.message || 'Unable to delete elective';
+					showNotification(message, 'error');
+				} finally {
+					setDeletingId(null);
 				}
 		}
 
@@ -559,8 +598,20 @@ function ElectivesTab({ instanceId }) {
 		return String(groupId);
 	};
 
+	function triggerDelete(id, event) {
+		event.preventDefault();
+		event.stopPropagation();
+		handleDelete(id);
+	}
+
 	return (
 		<>
+			{notification.show ? (
+				<div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-lg px-5 py-3 text-sm font-medium text-white shadow-lg ${notification.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
+					<span>{notification.message}</span>
+					<button type="button" onClick={() => setNotification({ show: false, message: '', type: 'success' })} className="ml-2 text-white/80 hover:text-white">✕</button>
+				</div>
+			) : null}
 			<div className="mb-4 flex justify-end">
 				<button onClick={() => openModal()} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
 					<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -591,7 +642,7 @@ function ElectivesTab({ instanceId }) {
 							<tr><td colSpan="10" className="py-10 text-center text-sm text-gray-500">No electives added yet</td></tr>
 						) : (
 							electives.map((el, i) => (
-								<tr key={el.id} className={`transition-colors hover:bg-blue-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+								<tr key={el.id ?? `${el.electiveCode}-${i}`} className={`transition-colors hover:bg-blue-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{i + 1}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-gray-900">{el.electiveCode}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{el.electiveName}</td>
@@ -602,12 +653,18 @@ function ElectivesTab({ instanceId }) {
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{el.compulsoryPrereq ? 'Yes' : 'No'}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{el.sem}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-center flex gap-2 justify-center">
-										<button onClick={() => openModal(el)} className="rounded-lg bg-yellow-500 p-1.5 text-white hover:bg-yellow-600" title="Edit">
-											<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13h6m2 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h6" />
+										<button type="button" onClick={() => openModal(el)} className="rounded-lg bg-blue-600 p-1.5 text-white hover:bg-blue-700" title="Edit">
+											<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
 											</svg>
 										</button>
-										<button onClick={() => handleDelete(el.id)} className="rounded-lg bg-red-600 p-1.5 text-white hover:bg-red-700" title="Remove">
+										<button
+											type="button"
+											onClick={(e) => triggerDelete(el.id, e)}
+											disabled={deletingId != null && String(deletingId) === String(el.id)}
+											className="rounded-lg bg-red-600 p-1.5 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+											title="Remove"
+										>
 											<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
 											</svg>
@@ -894,8 +951,8 @@ export default function ElectiveInstanceViewPage() {
 
 	const tabContent = {
 		students: <StudentsTab instanceId={instanceId} />,
-		groups: <GroupsTab openElectives={() => setActiveTab('electives')} />,
-		electives: <ElectivesTab />,
+		groups: <GroupsTab instanceId={instanceId} openElectives={() => setActiveTab('electives')} />,
+		electives: <ElectivesTab instanceId={instanceId} />,
 		allocation: <AllocationTab />
 	};
 

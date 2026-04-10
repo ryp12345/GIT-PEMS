@@ -9,6 +9,7 @@ export default function StatsPage() {
   const [saving, setSaving] = useState(false);
   const [edits, setEdits] = useState({});
   const [error, setError] = useState('');
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
 
   useEffect(() => {
     load();
@@ -50,8 +51,13 @@ export default function StatsPage() {
       await updateMinMax(updates);
       setEdits({});
       await load();
+      setNotification({ show: true, message: 'Update successful', type: 'success' });
+      setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000);
     } catch (err) {
-      setError(err?.response?.data?.error || err.message || 'Save failed');
+      const msg = err?.response?.data?.error || err.message || 'Save failed';
+      setError(msg);
+      setNotification({ show: true, message: msg, type: 'error' });
+      setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 4500);
     } finally {
       setSaving(false);
     }
@@ -59,6 +65,14 @@ export default function StatsPage() {
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      {notification.show ? (
+        <div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-lg px-5 py-3 text-sm font-medium text-white shadow-lg ${notification.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
+          <span>{notification.message}</span>
+          <button type="button" onClick={() => setNotification({ show: false, message: '', type: 'success' })} className="ml-2 text-white/80 hover:text-white">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      ) : null}
       <div className="flex flex-col">
         <div className="text-lg font-semibold text-slate-900 text-left">{`Welcome ${user?.name || ''}`}</div>
         <h2 className="text-xl font-semibold text-slate-900 text-center mt-2">{user?.name ? `${user.name} Students Elective List` : 'Students Elective List'}</h2>

@@ -16,6 +16,19 @@ async function getStudentsByInstance(instanceId, deptid) {
   return res.rows;
 }
 
+  async function getPendingStudentsByInstance(instanceId, deptid) {
+    const res = await pool.query(
+      `SELECT id, "Name", "USN", "UID", "DeptID", "CGPA", sem, instance_id
+       FROM public.students
+       WHERE instance_id = $1
+         AND "DeptID" = $2
+         AND "USN" NOT IN (SELECT ep."USN" FROM public.elective_preferences ep)
+       ORDER BY sem, "USN"`,
+      [instanceId, deptid]
+    );
+    return res.rows;
+  }
+
 async function findByUsn(usn) {
   const res = await pool.query(
     `SELECT id, "Name", "USN", "UID", "DeptID", "CGPA", sem FROM public.students WHERE "USN" = $1 LIMIT 1`,
@@ -72,4 +85,4 @@ async function remove(id, deptid, instanceId) {
   return true;
 }
 
-module.exports = { getStudentsByDept, getStudentsByInstance, findByUsn, findByUsnAndInstance, findByUidAndInstance, create, update, remove };
+module.exports = { getStudentsByDept, getStudentsByInstance, getPendingStudentsByInstance, findByUsn, findByUsnAndInstance, findByUidAndInstance, create, update, remove };

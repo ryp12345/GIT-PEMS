@@ -53,14 +53,17 @@ exports.update = async (req, res) => {
 exports.remove = async (req, res) => {
   try {
     const deptid = req.user && req.user.deptid;
-    const rawInstance = req.query.instanceId ?? req.body.instanceId ?? req.body.instance_id ?? (req.user && (req.user.instanceId || req.user.instance_id));
+    const rawInstance = req.query.instanceId ?? req.body?.instanceId ?? req.body?.instance_id ?? (req.user && (req.user.instanceId || req.user.instance_id));
     const instanceId = rawInstance == null ? null : (Number.isInteger(Number(rawInstance)) ? Number(rawInstance) : null);
     const id = Number(req.params.id);
     console.log('[Elective Remove] req.user:', req.user, 'rawInstance:', rawInstance, 'params.id:', req.params.id);
-    if (!deptid || instanceId == null || !id) return res.status(400).json({ error: 'Missing required fields' });
+    if (!deptid || !id) return res.status(400).json({ error: 'Missing required fields' });
     await electiveService.remove(id, deptid, instanceId);
     return res.json({ success: true });
   } catch (error) {
+    if (error && error.message === 'Elective not found') {
+      return res.status(404).json({ error: 'Elective not found' });
+    }
     return res.status(400).json({ error: error.message || 'Unable to delete elective' });
   }
 };

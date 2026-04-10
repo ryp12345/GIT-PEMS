@@ -51,13 +51,32 @@ exports.update = async (data) => {
   return { id };
 };
 
-exports.remove = async (id, deptid) => {
-  // optional instance scoping: if third arg provided, expect caller to pass instance_id as third param
-  const instanceArg = arguments.length >= 3 ? arguments[2] : null;
-  if (instanceArg) {
-    await pool.query('DELETE FROM elective_list WHERE "ID"=$1 AND "DeptID"=$2 AND instance_id=$3', [id, deptid, instanceArg]);
+exports.remove = async (id, deptid, instanceId = null) => {
+  let result;
+
+  if (instanceId != null) {
+    result = await pool.query(
+      'DELETE FROM elective_list WHERE "ID"=$1 AND "DeptID"=$2 AND instance_id=$3',
+      [id, deptid, instanceId]
+    );
+
+    // Backward compatibility for rows created before instance scoping.
+    if (result.rowCount === 0) {
+      result = await pool.query(
+        'DELETE FROM elective_list WHERE "ID"=$1 AND "DeptID"=$2',
+        [id, deptid]
+      );
+    }
   } else {
-    await pool.query('DELETE FROM elective_list WHERE "ID"=$1 AND "DeptID"=$2', [id, deptid]);
+    result = await pool.query(
+      'DELETE FROM elective_list WHERE "ID"=$1 AND "DeptID"=$2',
+      [id, deptid]
+    );
   }
+
+  if (result.rowCount === 0) {
+    throw new Error('Elective not found');
+  }
+
   return { id };
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Header from '../../components/Header';
 import Sidebar, { menuLinks } from '../../components/Sidebar';
@@ -7,6 +7,7 @@ import ElectiveInstancePage from './ElectiveInstancePage';
 import ElectiveInstanceViewPage from './ElectiveInstanceViewPage';
 import StatsPage from './StatsPage';
 import ElectiveStudentsPage from './ElectiveStudentsPage';
+import { getElectiveStudents } from '../../api/hod/stats.api';
 
 function DashboardPlaceholder({ title }) {
 	return (
@@ -42,10 +43,56 @@ export default function HODDashboard() {
 			return <ElectiveStudentsPage />;
 		}
 
+		if (location.pathname === '/' || location.pathname === '/dashboard') {
+			return (
+				<>
+					<PendingStudentsCard />
+				</>
+			);
+		}
 		return <DashboardPlaceholder title={activeLabel} />;
 	}
 
-	return (
+	function PendingStudentsCard() {
+	  const [pending, setPending] = useState([]);
+	  const [loading, setLoading] = useState(true);
+	  const [error, setError] = useState('');
+
+	  useEffect(() => {
+	    let mounted = true;
+	    async function load() {
+	      setLoading(true);
+	      try {
+	        const res = await getElectiveStudents();
+	        if (!mounted) return;
+	        setPending(res.data.pendingStudents || []);
+	      } catch (err) {
+	        if (!mounted) return;
+	        setError(err?.response?.data?.error || err.message || 'Failed to load');
+	      } finally {
+	        if (mounted) setLoading(false);
+	      }
+	    }
+	    load();
+	    return () => { mounted = false; };
+	  }, []);
+
+	  return (
+	    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+	      <div className="flex items-center justify-between">
+	        <h2 className="text-xl font-semibold text-slate-900">Dashboard</h2>
+	      </div>
+
+	      {loading ? <div className="mt-4 text-sm text-gray-600">Loading...</div> : null}
+	      {error ? <div className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+
+			
+	    </div>
+	  );
+	}
+	
+	// Removed QuickActionsCard and OverviewCard per request; dashboard shows only pending list for now.
+		return (
 		<div className="min-h-screen bg-slate-100 lg:flex">
 			<Sidebar
 				isOpen={isSidebarOpen}

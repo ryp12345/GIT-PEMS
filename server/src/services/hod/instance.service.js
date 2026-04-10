@@ -29,7 +29,15 @@ function validateDates(startDate, endDate) {
 
 function normalizeDateOnly(value) {
 	if (!value) return null;
-	return String(value).slice(0, 10);
+	if (value instanceof Date && !Number.isNaN(value.getTime())) {
+		const year = value.getFullYear();
+		const month = String(value.getMonth() + 1).padStart(2, '0');
+		const day = String(value.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	}
+	const raw = String(value);
+	const isoMatch = raw.match(/\d{4}-\d{2}-\d{2}/);
+	return isoMatch ? isoMatch[0] : raw.slice(0, 10);
 }
 
 async function listByDepartment(deptid) {

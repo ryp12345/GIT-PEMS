@@ -13,6 +13,19 @@ async function getDistinctGroups(deptid) {
   return res.rows.map((r) => r.electivegroup);
 }
 
+async function getDistinctGroupsWithAllocations(deptid) {
+  // Match PHP behavior: only groups where at least one course has non-zero total allocations.
+  const res = await pool.query(
+    `SELECT electivegroup, MIN(sem) AS min_sem
+     FROM public.elective_list
+     WHERE "DeptID" = $1 AND total_allocations <> 0
+     GROUP BY electivegroup
+     ORDER BY min_sem`,
+    [deptid]
+  );
+  return res.rows.map((r) => r.electivegroup);
+}
+
 async function getCoursesByGroup(deptid, group) {
   const res = await pool.query(
     `SELECT coursecode, "courseName" AS coursename, allocation_status, cgpa_cutoff, min, max, total_allocations
@@ -66,6 +79,7 @@ async function updateMinMaxBatch(updates, deptid) {
 
 module.exports = {
   getDistinctGroups,
+  getDistinctGroupsWithAllocations,
   getCoursesByGroup,
   getPreferenceCountsForCourses,
   updateMinMaxBatch

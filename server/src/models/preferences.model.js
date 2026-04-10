@@ -39,9 +39,40 @@ async function getStudentListsForCoursecodes(coursecodes, deptid) {
   return res.rows.map(r => ({ coursecode: r.coursecode, preference: Number(r.preference), status: Number(r.status), usn: r.usn, name: r.name }));
 }
 
+async function getUnallocatedStudentsByGroup(deptid, electivegroup) {
+  const res = await pool.query(
+    `SELECT s."USN" AS usn, s."Name" AS name
+     FROM public.students s
+     WHERE s."DeptID" = $1
+       AND s."USN" IN (
+         SELECT ep."USN"
+         FROM public.elective_preferences ep
+         WHERE ep.status < 0 AND ep.electivegroup = $2
+       )
+     ORDER BY s."USN"`,
+    [deptid, electivegroup]
+  );
+  return res.rows.map((r) => ({ usn: r.usn, name: r.name }));
+}
+
+async function getPendingStudentsByDept(deptid) {
+  // Students in the department who have not submitted any elective_preferences
+  const res = await pool.query(
+    `SELECT s."USN" AS usn, s."Name" AS name
+     FROM public.students s
+     WHERE s."DeptID" = $1
+       AND s."USN" NOT IN (SELECT ep."USN" FROM public.elective_preferences ep)
+     ORDER BY s."USN"`,
+    [deptid]
+  );
+  return res.rows.map((r) => ({ usn: r.usn, name: r.name }));
+}
+
 module.exports = {
   getPreferencesByCoursecode,
   getPreferencesByCoursecodes,
   countPreferencesByCoursecodes,
-  getStudentListsForCoursecodes
+  getStudentListsForCoursecodes,
+  getUnallocatedStudentsByGroup
+  ,getPendingStudentsByDept
 };

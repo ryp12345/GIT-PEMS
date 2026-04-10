@@ -1,22 +1,29 @@
 import api from '../axios';
 
-const _q = (k, v) => (v !== undefined && v !== null ? `?${k}=${encodeURIComponent(v)}` : '');
+const _qs = (params) => {
+  const searchParams = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) searchParams.set(key, String(value));
+  });
+  const query = searchParams.toString();
+  return query ? `?${query}` : '';
+};
 
 // List students for an instance
-export const listStudents = (instanceId) =>
-  api.get(`/hod/students${_q('instanceId', instanceId)}`);
+export const listStudents = (instanceId, options = {}) =>
+  api.get(`/hod/students${_qs({ instanceId, pendingOnly: options.pendingOnly })}`);
 
 // Create a student for an instance
 export const createStudent = (instanceId, data) =>
-  api.post(`/hod/students${_q('instanceId', instanceId)}`, data);
+  api.post(`/hod/students${_qs({ instanceId })}`, data);
 
 // Update a student for an instance
 export const updateStudent = (instanceId, studentId, data) =>
-  api.put(`/hod/students/${studentId}${_q('instanceId', instanceId)}`, data);
+  api.put(`/hod/students/${studentId}${_qs({ instanceId })}`, data);
 
 // Delete a student for an instance
 export const deleteStudent = (instanceId, studentId) =>
-  api.delete(`/hod/students/${studentId}${_q('instanceId', instanceId)}`);
+  api.delete(`/hod/students/${studentId}${_qs({ instanceId })}`);
 
 export const uploadStudentsExcel = (instanceId, formData) => {
   const qs = instanceId !== undefined && instanceId !== null ? `?instanceId=${encodeURIComponent(instanceId)}` : '';

@@ -29,7 +29,10 @@ exports.list = async (req, res) => {
     const deptid = req.user && req.user.deptid;
     const instanceId = req.query.instanceId;
     if (!deptid) return res.status(401).json({ error: 'Missing department id' });
-    const rows = await studentsService.listByInstance(instanceId, deptid);
+    const pendingOnly = String(req.query.pendingOnly || '').toLowerCase() === 'true';
+    const rows = pendingOnly
+      ? await studentsService.listPendingByInstance(instanceId, deptid)
+      : await studentsService.listByInstance(instanceId, deptid);
     return res.json({ items: rows });
   } catch (err) {
     return res.status(400).json({ error: err.message || 'Unable to fetch students' });

@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 export default function ElectiveStudentsPage() {
   const { user } = useAuth();
   const [groups, setGroups] = useState([]);
+  const [unallocatedGroups, setUnallocatedGroups] = useState([]);
   const [rows, setRows] = useState([]); // flattened rows
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -21,7 +22,9 @@ export default function ElectiveStudentsPage() {
     try {
       const res = await getElectiveStudents();
       const groupsData = res.data.groups || [];
+      const unallocatedData = res.data.unallocatedGroups || [];
       setGroups(groupsData);
+      setUnallocatedGroups(unallocatedData);
       // Flatten: iterate groups -> courses -> students to preserve ordering
       const flat = [];
       groupsData.forEach((g) => {
@@ -70,6 +73,48 @@ export default function ElectiveStudentsPage() {
       <div className="flex flex-col">
         <div className="text-lg font-semibold text-slate-900 text-left">{`Welcome ${user?.name || ''}`}</div>
         <h2 className="text-xl font-semibold text-slate-900 text-center mt-2">{user?.name ? `${user.name} Students Elective List` : 'Students Elective List'}</h2>
+      </div>
+
+      <div className="mt-6">
+        <h3 className="text-base font-semibold text-slate-900">Students with unallocated elective</h3>
+        <div className="overflow-x-auto rounded-xl border border-gray-200 mt-3">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-slate-700 text-white">
+              <tr>
+                <th className="px-3 py-2 text-left">S.No</th>
+                <th className="px-3 py-2 text-left">USN</th>
+                <th className="px-3 py-2 text-left">Name</th>
+                <th className="px-3 py-2 text-left">Elective Group</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 bg-white">
+              {unallocatedGroups.length === 0 ? (
+                <tr><td colSpan="4" className="py-6 text-center text-sm text-gray-500">No allocated elective groups found yet.</td></tr>
+              ) : (
+                unallocatedGroups.map((g) => {
+                  if (!g.students || g.students.length === 0) {
+                    return (
+                      <tr key={`msg-${g.electivegroup}`}>
+                        <td colSpan="4" className="px-3 py-3 text-center text-sm text-gray-700">
+                          <b>All students who registered their preferences for the elective group {g.electivegroup} are allocated.</b>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return g.students.map((s, i) => (
+                    <tr key={`${g.electivegroup}-${s.usn}-${i}`} className={`${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                      <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-700">{i + 1}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-700">{s.usn}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-900">{s.name}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-700">{g.electivegroup}</td>
+                    </tr>
+                  ));
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {loading ? <div className="mt-4 text-sm text-gray-600">Loading...</div> : null}
