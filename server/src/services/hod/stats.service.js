@@ -37,6 +37,10 @@ async function updateMinMax(updates, deptid) {
   return electivesModel.updateMinMaxBatch(updates, deptid);
 }
 
+async function resetAllocations(deptid) {
+  return electivesModel.resetAllocationsByDept(deptid);
+}
+
 async function listElectiveStudents(deptid) {
   const groups = await electivesModel.getDistinctGroups(deptid);
   const result = [];
@@ -75,5 +79,6 @@ async function listElectiveStudents(deptid) {
 module.exports = {
   listElectivesStats,
   updateMinMax,
+  resetAllocations,
   listElectiveStudents
 };

@@ -77,10 +77,41 @@ async function updateMinMaxBatch(updates, deptid) {
   }
 }
 
+async function resetAllocationsByDept(deptid) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE public.elective_preferences ep
+       SET status = 0
+       FROM public.elective_list el
+       WHERE el.coursecode = ep.coursecode
+         AND el."DeptID" = $1`,
+      [deptid]
+    );
+    await client.query(
+      `UPDATE public.elective_list
+       SET total_allocations = 0,
+           allocation_status = 0,
+           cgpa_cutoff = 0
+       WHERE "DeptID" = $1`,
+      [deptid]
+    );
+    await client.query('COMMIT');
+    return { success: true };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   getDistinctGroups,
   getDistinctGroupsWithAllocations,
   getCoursesByGroup,
   getPreferenceCountsForCourses,
-  updateMinMaxBatch
+  updateMinMaxBatch,
+  resetAllocationsByDept
 };

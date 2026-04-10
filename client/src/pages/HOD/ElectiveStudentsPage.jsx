@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getElectiveStudents } from '../../api/hod/stats.api';
+import { exportElectiveStudents, getElectiveStudents, resetElectiveAllocations } from '../../api/hod/stats.api';
 import { useAuth } from '../../context/AuthContext';
 
 export default function ElectiveStudentsPage() {
@@ -7,12 +7,15 @@ export default function ElectiveStudentsPage() {
   const [unallocatedGroups, setUnallocatedGroups] = useState([]);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
 
   // Unified search & pagination
   const [searchText, setSearchText] = useState('');
   const [page, setPage] = useState(1);
-  const pageSize = 15;
+  const pageSize = 10;
 
   useEffect(() => { load(); }, []);
 
@@ -72,8 +75,62 @@ export default function ElectiveStudentsPage() {
     setPage(1);
   }
 
+  async function handleResetAllocations() {
+    const confirmed = window.confirm('Undo allocations?');
+    if (!confirmed) return;
+
+    setResetting(true);
+    setError('');
+    try {
+      const res = await resetElectiveAllocations();
+      setNotification({ show: true, message: res.data?.message || 'success', type: 'success' });
+      await load();
+    } catch (err) {
+      const message = err?.response?.data?.error || err.message || 'Failed to undo allocations';
+      setError(message);
+      setNotification({ show: true, message, type: 'error' });
+    } finally {
+      setResetting(false);
+      setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000);
+    }
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setError('');
+    try {
+      const res = await exportElectiveStudents();
+      const disposition = res.headers['content-disposition'] || '';
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const fileName = match ? match[1] : `${(user?.name || 'department').replace(/\s+/g, '_')}_Students.xlsx`;
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      const message = err?.response?.data?.error || err.message || 'Failed to export students';
+      setError(message);
+      setNotification({ show: true, message, type: 'error' });
+      setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      {notification.show ? (
+        <div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-lg px-5 py-3 text-sm font-medium text-white shadow-lg ${notification.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
+          <span>{notification.message}</span>
+          <button type="button" onClick={() => setNotification({ show: false, message: '', type: 'success' })} className="ml-2 text-white/80 hover:text-white">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      ) : null}
       <div className="flex flex-col">
         {/* <div className="text-lg font-semibold text-slate-900 text-left">{`Welcome ${user?.name || ''}`}</div> */}
         <h2 className="text-xl font-semibold text-slate-900 text-center mt-2">{user?.name ? `${user.name} Students Elective List` : 'Students Elective List'}</h2>
@@ -125,6 +182,28 @@ export default function ElectiveStudentsPage() {
       {error ? <div className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
       <div className="mt-6">
+        <div className="flex justify-end">
+          <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-center">
+          <button
+            id="reset"
+            type="button"
+            onClick={handleResetAllocations}
+            disabled={resetting}
+            className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {resetting ? 'Undoing...' : 'Undo Allocations'}
+          </button>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {exporting ? 'Exporting...' : 'Export to Excel'}
+          </button>
+          </div>
+        </div>
+
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div className="relative w-full sm:w-80">
             <input
