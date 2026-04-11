@@ -6,7 +6,6 @@ import { useAuth } from '../../context/AuthContext';
 import ElectiveInstancePage from './ElectiveInstancePage';
 import ElectiveInstanceViewPage from './ElectiveInstanceViewPage';
 import StatsPage from './StatsPage';
-import ElectiveStudentsPage from './ElectiveStudentsPage';
 import { getElectiveStudents } from '../../api/hod/stats.api';
 
 function DashboardPlaceholder({ title }) {
@@ -37,10 +36,6 @@ export default function HODDashboard() {
 
 		if (location.pathname === '/elective-stats') {
 			return <StatsPage />;
-		}
-
-		if (location.pathname === '/elective-students') {
-			return <ElectiveStudentsPage />;
 		}
 
 		if (location.pathname === '/' || location.pathname === '/dashboard') {

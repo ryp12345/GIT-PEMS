@@ -206,7 +206,7 @@ async function allocateByDeptAndInstance(deptid, instanceId) {
     const rejectedCourses = [];
     const rejectionCandidates = await client.query(
       `SELECT el.coursecode, el."courseName" AS course_name, el.min,
-              COUNT(ep.id)::int AS first_preference_count
+              COUNT(s."USN")::int AS first_preference_count
        FROM public.elective_list el
        LEFT JOIN public.elective_preferences ep
          ON ep.coursecode = el.coursecode
@@ -330,7 +330,7 @@ async function allocateByDeptAndInstance(deptid, instanceId) {
                AND ep.preference = $4
                AND el."DeptID" = $1
                AND el.instance_id = $2
-             ORDER BY s."CGPA" DESC, s."USN" ASC${applicantLimitClause}`,
+             ORDER BY s."CGPA" DESC${applicantLimitClause}`,
             applicantParams
           );
 

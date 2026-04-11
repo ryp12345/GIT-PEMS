@@ -7,8 +7,7 @@ import HODDashboard from './pages/HOD/Dashboard';
 const hodRoutes = [
 	'/dashboard',
 	'/elective-instance',
-	'/elective-stats',
-	'/elective-students'
+	'/elective-stats'
 ];
 
 export default function App(){
