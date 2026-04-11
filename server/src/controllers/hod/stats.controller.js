@@ -29,19 +29,37 @@ exports.updateMinMax = async (req, res) => {
 exports.listElectiveStudents = async (req, res) => {
   try {
     const deptid = req.user && req.user.deptid;
+    const rawInstance = req.query.instanceId ?? req.body?.instanceId ?? req.body?.instance_id;
+    const instanceId = rawInstance == null ? null : (Number.isInteger(Number(rawInstance)) ? Number(rawInstance) : null);
     if (!deptid) return res.status(401).json({ error: 'Missing department id' });
-    const data = await statsService.listElectiveStudents(deptid);
+    const data = await statsService.listElectiveStudents(deptid, instanceId);
     return res.json(data);
   } catch (error) {
     return res.status(400).json({ error: error.message || 'Unable to fetch elective students' });
   }
 };
 
+exports.allocateElectiveStudents = async (req, res) => {
+  try {
+    const deptid = req.user && req.user.deptid;
+    const rawInstance = req.query.instanceId ?? req.body?.instanceId ?? req.body?.instance_id;
+    const instanceId = rawInstance == null ? null : (Number.isInteger(Number(rawInstance)) ? Number(rawInstance) : null);
+    if (!deptid) return res.status(401).json({ error: 'Missing department id' });
+    if (instanceId == null) return res.status(400).json({ error: 'Missing instance id' });
+    const data = await statsService.runAllocations(deptid, instanceId);
+    return res.json(data);
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'Unable to allocate electives' });
+  }
+};
+
 exports.resetElectiveAllocations = async (req, res) => {
   try {
     const deptid = req.user && req.user.deptid;
+    const rawInstance = req.query.instanceId ?? req.body?.instanceId ?? req.body?.instance_id;
+    const instanceId = rawInstance == null ? null : (Number.isInteger(Number(rawInstance)) ? Number(rawInstance) : null);
     if (!deptid) return res.status(401).json({ error: 'Missing department id' });
-    await statsService.resetAllocations(deptid);
+    await statsService.resetAllocations(deptid, instanceId);
     return res.json({ message: 'success' });
   } catch (error) {
     return res.status(400).json({ error: error.message || 'Unable to reset allocations' });
@@ -51,10 +69,12 @@ exports.resetElectiveAllocations = async (req, res) => {
 exports.exportElectiveStudents = async (req, res) => {
   try {
     const deptid = req.user && req.user.deptid;
+    const rawInstance = req.query.instanceId ?? req.body?.instanceId ?? req.body?.instance_id;
+    const instanceId = rawInstance == null ? null : (Number.isInteger(Number(rawInstance)) ? Number(rawInstance) : null);
     if (!deptid) return res.status(401).json({ error: 'Missing department id' });
 
     const [{ groups }, department] = await Promise.all([
-      statsService.listElectiveStudents(deptid),
+      statsService.listElectiveStudents(deptid, instanceId),
       userModel.findById(deptid)
     ]);
 

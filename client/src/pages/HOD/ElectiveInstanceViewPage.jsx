@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { listAcademicYearInstances } from '../../api/hod/instance.api';
 import { listStudents, createStudent, updateStudent, deleteStudent, uploadStudentsExcel, downloadStudentsTemplate } from '../../api/hod/student.api';
 import { listElectives, createElective, updateElective, deleteElective } from '../../api/hod/elective.api';
+import { allocateElectiveStudents, exportElectiveStudents, getElectiveStudents, resetElectiveAllocations } from '../../api/hod/stats.api';
 
 const TABS = [
 	{ id: 'students', label: 'Students' },
@@ -455,6 +456,9 @@ function ElectivesTab({ instanceId }) {
 		sem: '',
 	});
 	const [error, setError] = useState('');
+	const [search, setSearch] = useState('');
+	const [page, setPage] = useState(1);
+	const PAGE_SIZE = 10;
 
 	function showNotification(message, type = 'success') {
 		setNotification({ show: true, message, type });
@@ -604,6 +608,24 @@ function ElectivesTab({ instanceId }) {
 		handleDelete(id);
 	}
 
+	const filteredElectives = useMemo(() => {
+		const q = search.trim().toLowerCase();
+		if (!q) return electives;
+		return electives.filter((el) => (
+			String(el.electiveCode || '').toLowerCase().includes(q) ||
+			String(el.electiveName || '').toLowerCase().includes(q) ||
+			String(getGroupName(el.groupId) || '').toLowerCase().includes(q) ||
+			String(el.division || '').toLowerCase().includes(q) ||
+			String(el.max || '').toLowerCase().includes(q) ||
+			String(el.preReq || '').toLowerCase().includes(q) ||
+			String(el.compulsoryPrereq ? 'Yes' : 'No').toLowerCase().includes(q) ||
+			String(el.sem || '').toLowerCase().includes(q)
+		));
+	}, [electives, search]);
+
+	const totalPages = Math.max(1, Math.ceil(filteredElectives.length / PAGE_SIZE));
+	const paginatedElectives = filteredElectives.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
 	return (
 		<>
 			{notification.show ? (
@@ -612,7 +634,18 @@ function ElectivesTab({ instanceId }) {
 					<button type="button" onClick={() => setNotification({ show: false, message: '', type: 'success' })} className="ml-2 text-white/80 hover:text-white">✕</button>
 				</div>
 			) : null}
-			<div className="mb-4 flex justify-end">
+			<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+				<div className="relative w-full sm:w-80">
+					<input
+						value={search}
+						onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+						placeholder="Search electives..."
+						className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+					/>
+					<svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+					</svg>
+				</div>
 				<button onClick={() => openModal()} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
 					<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
 						<path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -638,12 +671,12 @@ function ElectivesTab({ instanceId }) {
 						</tr>
 					</thead>
 					<tbody className="divide-y divide-gray-100 bg-white">
-						{electives.length === 0 ? (
-							<tr><td colSpan="10" className="py-10 text-center text-sm text-gray-500">No electives added yet</td></tr>
+						{paginatedElectives.length === 0 ? (
+							<tr><td colSpan="10" className="py-10 text-center text-sm text-gray-500">{electives.length === 0 ? 'No electives added yet' : 'No electives match your search'}</td></tr>
 						) : (
-							electives.map((el, i) => (
+							paginatedElectives.map((el, i) => (
 								<tr key={el.id ?? `${el.electiveCode}-${i}`} className={`transition-colors hover:bg-blue-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{i + 1}</td>
+									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{(page - 1) * PAGE_SIZE + i + 1}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-gray-900">{el.electiveCode}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{el.electiveName}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{getGroupName(el.groupId)}</td>
@@ -676,6 +709,28 @@ function ElectivesTab({ instanceId }) {
 					</tbody>
 				</table>
 			</div>
+
+			{filteredElectives.length > PAGE_SIZE ? (
+				<div className="mt-4 flex items-center justify-end gap-2">
+					<button
+						type="button"
+						onClick={() => setPage((current) => Math.max(1, current - 1))}
+						disabled={page === 1}
+						className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+					>
+						Prev
+					</button>
+					<span className="text-sm text-gray-700">Page {page} of {totalPages}</span>
+					<button
+						type="button"
+						onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+						disabled={page === totalPages}
+						className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+					>
+						Next
+					</button>
+				</div>
+			) : null}
 
 			{isModalOpen ? (
 				<Modal title={editId ? 'Edit Elective' : 'Add Elective'} onClose={closeModal}>
@@ -751,111 +806,505 @@ function ElectivesTab({ instanceId }) {
 
 // ─── Allocation ──────────────────────────────────────────────────────────────
 
-function AllocationTab() {
-	const [students] = useState([]);
-	const [electives] = useState([]);
-	const [allocations, setAllocations] = useState([]);
-	const [isModalOpen, setIsModalOpen] = useState(false);
-	const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
-	const [form, setForm] = useState({ studentId: '', electiveId: '' });
+function AllocationTab({ instanceId }) {
+	const params = useParams();
+	const resolvedInstanceId = instanceId ?? (params.instanceId ? Number(params.instanceId) : null);
+	const [unallocatedGroups, setUnallocatedGroups] = useState([]);
+	const [rows, setRows] = useState([]);
+	const [pendingStudents, setPendingStudents] = useState([]);
+	const [courseStats, setCourseStats] = useState([]);
+	const [loading, setLoading] = useState(true);
+	const [allocating, setAllocating] = useState(false);
+	const [resetting, setResetting] = useState(false);
+	const [exporting, setExporting] = useState(false);
 	const [error, setError] = useState('');
+	const [searchText, setSearchText] = useState('');
+	const [page, setPage] = useState(1);
+	const [summarySearch, setSummarySearch] = useState('');
+	const [summaryPage, setSummaryPage] = useState(1);
+	const [unallocatedSearch, setUnallocatedSearch] = useState('');
+	const [unallocatedPage, setUnallocatedPage] = useState(1);
+	const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+	const pageSize = 10;
 
-	function openModal() { setForm({ studentId: '', electiveId: '' }); setError(''); setIsModalOpen(true); }
-	function openSuccessModal() { setIsSuccessModalOpen(true); }
-	function closeSuccessModal() { setIsSuccessModalOpen(false); }
-	function closeModal() { setIsModalOpen(false); setError(''); }
+	useEffect(() => {
+		if (resolvedInstanceId == null) return;
+		loadAllocationData();
+	}, [resolvedInstanceId]);
 
-	function handleSubmit(e) {
-		e.preventDefault();
-		if (!form.studentId) { setError('Please select a student'); return; }
-		if (!form.electiveId) { setError('Please select an elective'); return; }
-		const student = students.find((s) => s.id === Number(form.studentId));
-		const elective = electives.find((el) => el.id === Number(form.electiveId));
-		if (!student || !elective) { setError('Invalid selection'); return; }
-		setAllocations((prev) => [...prev, { id: Date.now(), studentName: student.name, regNo: student.regNo, electiveName: `${elective.electiveCode} - ${elective.electiveName}` }]);
-		closeModal();
+	function showNotification(message, type = 'success') {
+		setNotification({ show: true, message, type });
+		setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 4000);
 	}
 
-	function handleDelete(id) {
-		if (!window.confirm('Remove this allocation?')) return;
-		setAllocations((prev) => prev.filter((a) => a.id !== id));
+	async function loadAllocationData() {
+		if (resolvedInstanceId == null) return;
+		setLoading(true);
+		setError('');
+		try {
+			const res = await getElectiveStudents(resolvedInstanceId);
+			const groupsData = res.data.groups || [];
+			const unallocatedData = res.data.unallocatedGroups || [];
+			const pendingData = res.data.pendingStudents || [];
+			const flatRows = [];
+			const flattenedCourseStats = [];
+
+			groupsData.forEach((group) => {
+				(group.courses || []).forEach((course) => {
+					flattenedCourseStats.push({
+						electivegroup: group.electivegroup,
+						coursecode: course.coursecode,
+						courseName: course.courseName || course.coursename || '',
+						allocation_status: course.allocation_status,
+						cgpa_cutoff: course.cgpa_cutoff,
+						total_allocations: course.total_allocations,
+						max: course.max,
+						min: course.min,
+					});
+					(course.students || []).forEach((student, index) => {
+						flatRows.push({
+							serialNumber: index + 1,
+							electivegroup: group.electivegroup,
+							coursecode: course.coursecode,
+							courseName: course.courseName || course.coursename || '',
+							usn: student.usn,
+							name: student.name,
+							preference: student.preference,
+							status: student.status
+						});
+					});
+				});
+			});
+
+			setUnallocatedGroups(unallocatedData);
+			setPendingStudents(pendingData);
+			setRows(flatRows);
+			setCourseStats(flattenedCourseStats);
+			setPage(1);
+		} catch (err) {
+			setError(err?.response?.data?.error || err.message || 'Failed to load allocation data');
+			setUnallocatedGroups([]);
+			setPendingStudents([]);
+			setRows([]);
+			setCourseStats([]);
+		} finally {
+			setLoading(false);
+		}
+	}
+
+	const normalizedSearch = searchText.trim().toLowerCase();
+	const filteredRows = useMemo(() => {
+		if (!normalizedSearch) return rows;
+		return rows.filter((row) => (
+			String(row.electivegroup || '').toLowerCase().includes(normalizedSearch) ||
+			String(row.coursecode || '').toLowerCase().includes(normalizedSearch) ||
+			String(row.courseName || '').toLowerCase().includes(normalizedSearch) ||
+			String(row.usn || '').toLowerCase().includes(normalizedSearch) ||
+			String(row.name || '').toLowerCase().includes(normalizedSearch) ||
+			String(row.preference || '').toLowerCase().includes(normalizedSearch) ||
+			String(row.status || '').toLowerCase().includes(normalizedSearch)
+		));
+	}, [rows, normalizedSearch]);
+
+	const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+	const paginatedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
+	const filteredCourseStats = useMemo(() => {
+		const q = summarySearch.trim().toLowerCase();
+		if (!q) return courseStats;
+		return courseStats.filter((course) => (
+			String(course.coursecode || '').toLowerCase().includes(q) ||
+			String(course.courseName || '').toLowerCase().includes(q) ||
+			String(course.electivegroup || '').toLowerCase().includes(q) ||
+			String(course.allocation_status || '').toLowerCase().includes(q) ||
+			String(course.total_allocations || '').toLowerCase().includes(q) ||
+			String(course.max || '').toLowerCase().includes(q) ||
+			String(course.cgpa_cutoff || '').toLowerCase().includes(q)
+		));
+	}, [courseStats, summarySearch]);
+	const summaryTotalPages = Math.max(1, Math.ceil(filteredCourseStats.length / pageSize));
+	const paginatedCourseStats = filteredCourseStats.slice((summaryPage - 1) * pageSize, summaryPage * pageSize);
+	const unallocatedTableRows = useMemo(() => (
+		unallocatedGroups.flatMap((group) => {
+			if (!group.students || group.students.length === 0) {
+				return [{ type: 'message', electivegroup: group.electivegroup }];
+			}
+			return group.students.map((student, index) => ({
+				type: 'student',
+				electivegroup: group.electivegroup,
+				usn: student.usn,
+				name: student.name,
+				serialNumber: index + 1,
+			}));
+		})
+	), [unallocatedGroups]);
+	const filteredUnallocatedRows = useMemo(() => {
+		const q = unallocatedSearch.trim().toLowerCase();
+		if (!q) return unallocatedTableRows;
+		return unallocatedTableRows.filter((row) => (
+			String(row.electivegroup || '').toLowerCase().includes(q) ||
+			String(row.usn || '').toLowerCase().includes(q) ||
+			String(row.name || '').toLowerCase().includes(q)
+		));
+	}, [unallocatedTableRows, unallocatedSearch]);
+	const unallocatedTotalPages = Math.max(1, Math.ceil(filteredUnallocatedRows.length / pageSize));
+	const paginatedUnallocatedRows = filteredUnallocatedRows.slice((unallocatedPage - 1) * pageSize, unallocatedPage * pageSize);
+	const allocatedCount = rows.length;
+	const unallocatedCount = unallocatedGroups.reduce((sum, group) => sum + (group.students?.length || 0), 0);
+	const rejectedCount = courseStats.filter((course) => Number(course.allocation_status) === -1).length;
+
+	async function handleAllocate() {
+		if (resolvedInstanceId == null) return;
+		setAllocating(true);
+		setError('');
+		try {
+			const res = await allocateElectiveStudents(resolvedInstanceId);
+			const rejectedCourses = res.data?.rejectedCourses || [];
+			const message = rejectedCourses.length > 0
+				? `${res.data?.message || 'Allocation completed successfully.'} Rejected: ${rejectedCourses.map((course) => course.coursecode).join(', ')}`
+				: (res.data?.message || 'Allocation completed successfully.');
+			showNotification(message);
+			await loadAllocationData();
+		} catch (err) {
+			const message = err?.response?.data?.error || err.message || 'Failed to allocate electives';
+			setError(message);
+			showNotification(message, 'error');
+		} finally {
+			setAllocating(false);
+		}
+	}
+
+	async function handleResetAllocations() {
+		if (resolvedInstanceId == null) return;
+		const confirmed = window.confirm('Undo allocations for this instance?');
+		if (!confirmed) return;
+
+		setResetting(true);
+		setError('');
+		try {
+			const res = await resetElectiveAllocations(resolvedInstanceId);
+			showNotification(res.data?.message || 'Allocations reset successfully');
+			await loadAllocationData();
+		} catch (err) {
+			const message = err?.response?.data?.error || err.message || 'Failed to undo allocations';
+			setError(message);
+			showNotification(message, 'error');
+		} finally {
+			setResetting(false);
+		}
+	}
+
+	async function handleExport() {
+		if (resolvedInstanceId == null) return;
+		setExporting(true);
+		setError('');
+		try {
+			const res = await exportElectiveStudents(resolvedInstanceId);
+			const disposition = res.headers['content-disposition'] || '';
+			const match = disposition.match(/filename="?([^";]+)"?/i);
+			const fileName = match ? match[1] : 'elective_allocations.xlsx';
+			const url = window.URL.createObjectURL(new Blob([res.data]));
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = fileName;
+			document.body.appendChild(link);
+			link.click();
+			link.remove();
+			window.URL.revokeObjectURL(url);
+		} catch (err) {
+			const message = err?.response?.data?.error || err.message || 'Failed to export allocations';
+			setError(message);
+			showNotification(message, 'error');
+		} finally {
+			setExporting(false);
+		}
 	}
 
 	return (
 		<>
-			<div className="mb-4 flex justify-end">
-						<button onClick={openSuccessModal} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-					<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-						<path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-					</svg>
-					Allocate
-				</button>
-			</div>
-
-			<div className="overflow-hidden rounded-xl border border-gray-200">
-				<table className="min-w-full divide-y divide-gray-200">
-					<thead className="bg-blue-600">
-						<tr>
-							<th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">S.No</th>
-							<th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Reg No</th>
-							<th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Student Name</th>
-							<th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Allocated Elective</th>
-							<th className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-white">Actions</th>
-						</tr>
-					</thead>
-					<tbody className="divide-y divide-gray-100 bg-white">
-						{allocations.length === 0 ? (
-							<tr><td colSpan="5" className="py-10 text-center text-sm text-gray-500">No allocations done yet</td></tr>
-						) : (
-							allocations.map((a, i) => (
-								<tr key={a.id} className={`transition-colors hover:bg-blue-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-									<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{i + 1}</td>
-									<td className="whitespace-nowrap px-5 py-3 text-sm font-medium text-gray-900">{a.regNo}</td>
-									<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{a.studentName}</td>
-									<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{a.electiveName}</td>
-									<td className="whitespace-nowrap px-5 py-3 text-center">
-										<button onClick={() => handleDelete(a.id)} className="rounded-lg bg-red-600 p-1.5 text-white hover:bg-red-700" title="Remove">
-											<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-											</svg>
-										</button>
-									</td>
-								</tr>
-							))
-						)}
-					</tbody>
-				</table>
-			</div>
-
-			{isModalOpen ? (
-				<Modal title="Allocate Elective" onClose={closeModal}>
-					{error ? <div className="mb-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
-					<form onSubmit={handleSubmit} className="space-y-4">
-						<Field label="Student *">
-							<select value={form.studentId} onChange={(e) => setForm((p) => ({ ...p, studentId: e.target.value }))} className={inputCls} required>
-								<option value="">Select student</option>
-								{students.map((s) => <option key={s.id} value={s.id}>{s.regNo} — {s.name}</option>)}
-							</select>
-						</Field>
-						<Field label="Elective *">
-							<select value={form.electiveId} onChange={(e) => setForm((p) => ({ ...p, electiveId: e.target.value }))} className={inputCls} required>
-								<option value="">Select elective</option>
-								{electives.map((el) => <option key={el.id} value={el.id}>{el.electiveCode} — {el.electiveName}</option>)}
-							</select>
-						</Field>
-						<ModalFooter onCancel={closeModal} submitLabel="Allocate" />
-					</form>
-				</Modal>
+			{notification.show ? (
+				<div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-lg px-5 py-3 text-sm font-medium text-white shadow-lg ${notification.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
+					<span>{notification.message}</span>
+					<button type="button" onClick={() => setNotification({ show: false, message: '', type: 'success' })} className="ml-2 text-white/80 hover:text-white">✕</button>
+				</div>
 			) : null}
 
-			{isSuccessModalOpen ? (
-				<Modal title="Allocation" onClose={closeSuccessModal}>
-					<div className="mb-4 text-sm text-gray-700">Allocation executed successfully.</div>
-					<div className="flex justify-end pt-2">
-						<button type="button" onClick={closeSuccessModal} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700">OK</button>
+			<div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+				<div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+					<div className="text-sm font-medium text-blue-700">Allocated students</div>
+					<div className="mt-2 text-3xl font-bold text-blue-900">{allocatedCount}</div>
+				</div>
+				<div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+					<div className="text-sm font-medium text-amber-700">Unallocated students</div>
+					<div className="mt-2 text-3xl font-bold text-amber-900">{unallocatedCount}</div>
+				</div>
+				<div className="rounded-2xl border border-rose-100 bg-rose-50 p-4">
+					<div className="text-sm font-medium text-rose-700">Rejected electives</div>
+					<div className="mt-2 text-3xl font-bold text-rose-900">{rejectedCount}</div>
+				</div>
+				<div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+					<div className="text-sm font-medium text-slate-700">Pending registrations</div>
+					<div className="mt-2 text-3xl font-bold text-slate-900">{pendingStudents.length}</div>
+				</div>
+			</div>
+
+			<div className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${pendingStudents.length === 0 ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+				{pendingStudents.length === 0
+					? 'All students in this instance have registered their elective preferences. Allocation can be executed now.'
+					: `${pendingStudents.length} student(s) in this instance have not registered preferences yet. You can still allocate, but the result will only include submitted preferences.`}
+			</div>
+
+			{error ? <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+
+			<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+				<div className="flex flex-wrap items-center gap-3">
+					<button
+						type="button"
+						onClick={handleAllocate}
+						disabled={allocating || loading}
+						className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+					>
+						{allocating ? 'Allocating...' : 'Run Allocation'}
+					</button>
+					<button
+						type="button"
+						onClick={handleResetAllocations}
+						disabled={resetting || loading}
+						className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+					>
+						{resetting ? 'Undoing...' : 'Undo Allocations'}
+					</button>
+					<button
+						type="button"
+						onClick={handleExport}
+						disabled={exporting || loading}
+						className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+					>
+						{exporting ? 'Exporting...' : 'Export to Excel'}
+					</button>
+				</div>
+			</div>
+
+			<div className="mb-6">
+				<h3 className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center text-base font-semibold text-blue-900 sm:text-lg">Allocation summary by elective</h3>
+				<div className="mb-4 flex justify-start">
+					<div className="relative w-full sm:w-80">
+						<input
+							value={summarySearch}
+							onChange={(e) => { setSummarySearch(e.target.value); setSummaryPage(1); }}
+							placeholder="Search allocation summary..."
+							className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+						/>
+						<svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+						</svg>
 					</div>
-				</Modal>
-			) : null}
+				</div>
+				<div className="overflow-x-auto rounded-xl border border-gray-200">
+					<table className="min-w-full divide-y divide-gray-200 text-sm">
+						<thead className="bg-blue-600 text-white">
+							<tr>
+								<th className="px-3 py-3 text-left">Course Code</th>
+								<th className="px-3 py-3 text-left">Course Name</th>
+								<th className="px-3 py-3 text-left">Group</th>
+								<th className="px-3 py-3 text-center">Allocated Pref</th>
+								<th className="px-3 py-3 text-center">Allocated</th>
+								<th className="px-3 py-3 text-center">Max</th>
+								<th className="px-3 py-3 text-center">CGPA Cutoff</th>
+							</tr>
+						</thead>
+						<tbody className="divide-y divide-gray-100 bg-white">
+							{paginatedCourseStats.length === 0 ? (
+								<tr><td colSpan="7" className="py-8 text-center text-sm text-gray-500">{courseStats.length === 0 ? 'No elective allocation data found for this instance.' : 'No summary rows match your search'}</td></tr>
+							) : (
+								paginatedCourseStats.map((course, index) => (
+									<tr key={`${course.coursecode}-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+										<td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-gray-900">{course.coursecode}</td>
+										<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{course.courseName}</td>
+										<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{course.electivegroup}</td>
+										<td className="whitespace-nowrap px-3 py-3 text-center text-sm text-gray-700">{course.allocation_status}</td>
+										<td className="whitespace-nowrap px-3 py-3 text-center text-sm text-gray-700">{course.total_allocations}</td>
+										<td className="whitespace-nowrap px-3 py-3 text-center text-sm text-gray-700">{course.max}</td>
+										<td className="whitespace-nowrap px-3 py-3 text-center text-sm text-gray-700">{Number(course.cgpa_cutoff || 0) > 0 ? Number(course.cgpa_cutoff).toFixed(2) : '-'}</td>
+									</tr>
+								))
+							)}
+						</tbody>
+					</table>
+				</div>
+				{filteredCourseStats.length > pageSize ? (
+					<div className="mt-4 flex items-center justify-end gap-2">
+						<button
+							type="button"
+							onClick={() => setSummaryPage((current) => Math.max(1, current - 1))}
+							disabled={summaryPage === 1}
+							className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+						>
+							Prev
+						</button>
+						<span className="text-sm text-gray-700">Page {summaryPage} of {summaryTotalPages}</span>
+						<button
+							type="button"
+							onClick={() => setSummaryPage((current) => Math.min(summaryTotalPages, current + 1))}
+							disabled={summaryPage === summaryTotalPages}
+							className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+						>
+							Next
+						</button>
+					</div>
+				) : null}
+			</div>
+
+			<div>
+				<h3 className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center text-base font-semibold text-blue-900 sm:text-lg">Allocated students</h3>
+				<div className="mb-4 flex justify-start">
+					<div className="relative w-full sm:w-96">
+						<input
+							type="text"
+							value={searchText}
+							onChange={(e) => { setSearchText(e.target.value); setPage(1); }}
+							placeholder="Search group, course, USN, name, preference..."
+							className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+						/>
+						<svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+						</svg>
+					</div>
+				</div>
+				<div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+				<div className="overflow-x-auto">
+					<table className="min-w-full divide-y divide-gray-200 text-sm">
+						<thead className="bg-blue-600 text-white">
+							<tr>
+								<th className="px-5 py-3 text-left">S.No</th>
+								<th className="px-5 py-3 text-left">Group</th>
+								<th className="px-5 py-3 text-left">Course Code</th>
+								<th className="px-5 py-3 text-left">Course Name</th>
+								<th className="px-5 py-3 text-left">USN</th>
+								<th className="px-5 py-3 text-left">Student Name</th>
+								<th className="px-5 py-3 text-center">Preference</th>
+							</tr>
+						</thead>
+						<tbody className="divide-y divide-gray-100 bg-white">
+							{loading ? (
+								<tr><td colSpan="7" className="py-10 text-center text-sm text-gray-500">Loading allocation data...</td></tr>
+							) : filteredRows.length === 0 ? (
+								<tr><td colSpan="7" className="py-10 text-center text-sm text-gray-500">{rows.length === 0 ? 'No allocations done yet' : 'No students match your search'}</td></tr>
+							) : (
+								paginatedRows.map((row, index) => (
+									<tr key={`${row.coursecode}-${row.usn}-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+										<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.serialNumber}</td>
+										<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.electivegroup}</td>
+										<td className="whitespace-nowrap px-5 py-3 text-sm font-medium text-gray-900">{row.coursecode}</td>
+										<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.courseName}</td>
+										<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.usn}</td>
+										<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.name}</td>
+										<td className="whitespace-nowrap px-5 py-3 text-center text-sm text-gray-700">{row.preference}</td>
+									</tr>
+								))
+							)}
+						</tbody>
+					</table>
+				</div>
+
+					{filteredRows.length > pageSize ? (
+						<div className="flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-4">
+							<button
+								type="button"
+								onClick={() => setPage((current) => Math.max(1, current - 1))}
+								disabled={page === 1}
+								className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+							>
+								Prev
+							</button>
+							<span className="text-sm text-gray-700">Page {page} of {totalPages}</span>
+							<button
+								type="button"
+								onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+								disabled={page === totalPages}
+								className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+							>
+								Next
+							</button>
+						</div>
+					) : null}
+				</div>
+			</div>
+
+			<div className="mt-6">
+				<h3 className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center text-base font-semibold text-blue-900 sm:text-lg">Students with unallocated elective</h3>
+				<div className="mb-4 flex justify-start">
+					<div className="relative w-full sm:w-80">
+						<input
+							value={unallocatedSearch}
+							onChange={(e) => { setUnallocatedSearch(e.target.value); setUnallocatedPage(1); }}
+							placeholder="Search unallocated students..."
+							className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+						/>
+						<svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+						</svg>
+					</div>
+				</div>
+				<div className="mt-2 overflow-x-auto rounded-xl border border-gray-200">
+					<table className="min-w-full divide-y divide-gray-200 text-sm">
+						<thead className="bg-blue-600 text-white">
+							<tr>
+								<th className="px-3 py-3 text-left">S.No</th>
+								<th className="px-3 py-3 text-left">USN</th>
+								<th className="px-3 py-3 text-left">Name</th>
+								<th className="px-3 py-3 text-left">Elective Group</th>
+							</tr>
+						</thead>
+						<tbody className="divide-y divide-gray-100 bg-white">
+							{paginatedUnallocatedRows.length === 0 ? (
+								<tr><td colSpan="4" className="py-6 text-center text-sm text-gray-500">No allocated elective groups found yet.</td></tr>
+							) : (
+								paginatedUnallocatedRows.map((row, index) => {
+									if (row.type === 'message') {
+										return (
+											<tr key={`msg-${row.electivegroup}-${index}`}>
+												<td colSpan="4" className="px-3 py-3 text-center text-sm text-gray-700">
+													<b>All students who registered their preferences for the elective group {row.electivegroup} are allocated.</b>
+												</td>
+											</tr>
+										);
+									}
+
+									return (
+										<tr key={`${row.electivegroup}-${row.usn}-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+											<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{row.serialNumber}</td>
+											<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{row.usn}</td>
+											<td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-gray-900">{row.name}</td>
+											<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{row.electivegroup}</td>
+										</tr>
+									);
+								})
+							)}
+						</tbody>
+					</table>
+				</div>
+				{filteredUnallocatedRows.length > pageSize ? (
+					<div className="mt-4 flex items-center justify-end gap-2">
+						<button
+							type="button"
+							onClick={() => setUnallocatedPage((current) => Math.max(1, current - 1))}
+							disabled={unallocatedPage === 1}
+							className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+						>
+							Prev
+						</button>
+						<span className="text-sm text-gray-700">Page {unallocatedPage} of {unallocatedTotalPages}</span>
+						<button
+							type="button"
+							onClick={() => setUnallocatedPage((current) => Math.min(unallocatedTotalPages, current + 1))}
+							disabled={unallocatedPage === unallocatedTotalPages}
+							className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+						>
+							Next
+						</button>
+					</div>
+				) : null}
+			</div>
 		</>
 	);
 }
@@ -953,7 +1402,7 @@ export default function ElectiveInstanceViewPage() {
 		students: <StudentsTab instanceId={instanceId} />,
 		groups: <GroupsTab instanceId={instanceId} openElectives={() => setActiveTab('electives')} />,
 		electives: <ElectivesTab instanceId={instanceId} />,
-		allocation: <AllocationTab />
+		allocation: <AllocationTab instanceId={instanceId} />
 	};
 
 	return (

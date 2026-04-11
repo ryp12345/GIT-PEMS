@@ -41,6 +41,27 @@ async function getStudentListsForCoursecodes(coursecodes, deptid) {
   return res.rows.map(r => ({ coursecode: r.coursecode, preference: Number(r.preference), status: Number(r.status), usn: r.usn, name: r.name }));
 }
 
+async function getStudentListsForCoursecodesByInstance(coursecodes, deptid, instanceId) {
+  if (!Array.isArray(coursecodes) || coursecodes.length === 0) return [];
+  const res = await pool.query(
+    `SELECT ep.coursecode, ep.preference, ep.status, ep."USN" AS usn, s."Name" AS name
+     FROM public.elective_preferences ep
+     JOIN public.students s
+       ON s."USN" = ep."USN"
+     JOIN public.elective_list el
+       ON el.coursecode = ep.coursecode
+     WHERE ep.coursecode = ANY($1)
+       AND s."DeptID" = $2
+       AND s.instance_id = $3
+       AND el."DeptID" = $2
+       AND el.instance_id = $3
+       AND ep.preference = ep.status
+     ORDER BY ep.coursecode, s."USN"`,
+    [coursecodes, deptid, instanceId]
+  );
+  return res.rows.map(r => ({ coursecode: r.coursecode, preference: Number(r.preference), status: Number(r.status), usn: r.usn, name: r.name }));
+}
+
 async function getUnallocatedStudentsByGroup(deptid, electivegroup) {
   const res = await pool.query(
     `SELECT s."USN" AS usn, s."Name" AS name
@@ -53,6 +74,32 @@ async function getUnallocatedStudentsByGroup(deptid, electivegroup) {
        )
      ORDER BY s."USN"`,
     [deptid, electivegroup]
+  );
+  return res.rows.map((r) => ({ usn: r.usn, name: r.name }));
+}
+
+async function getUnallocatedStudentsByGroupAndInstance(deptid, electivegroup, instanceId) {
+  const res = await pool.query(
+    `SELECT DISTINCT s."USN" AS usn, s."Name" AS name
+     FROM public.students s
+     WHERE s."DeptID" = $1
+       AND s.instance_id = $3
+       AND s."USN" IN (
+         SELECT ep."USN"
+         FROM public.elective_preferences ep
+         WHERE ep.status < 0
+           AND ep.electivegroup = $2
+           AND EXISTS (
+             SELECT 1
+             FROM public.elective_list el
+             WHERE el.coursecode = ep.coursecode
+               AND el."DeptID" = $1
+               AND el.instance_id = $3
+               AND el.electivegroup = $2
+           )
+       )
+     ORDER BY s."USN"`,
+    [deptid, electivegroup, instanceId]
   );
   return res.rows.map((r) => ({ usn: r.usn, name: r.name }));
 }
@@ -70,11 +117,35 @@ async function getPendingStudentsByDept(deptid) {
   return res.rows.map((r) => ({ usn: r.usn, name: r.name }));
 }
 
+async function getPendingStudentsByDeptAndInstance(deptid, instanceId) {
+  const res = await pool.query(
+    `SELECT s."USN" AS usn, s."Name" AS name
+     FROM public.students s
+     WHERE s."DeptID" = $1
+       AND s.instance_id = $2
+       AND NOT EXISTS (
+         SELECT 1
+         FROM public.elective_preferences ep
+         JOIN public.elective_list el
+           ON el.coursecode = ep.coursecode
+         WHERE ep."USN" = s."USN"
+           AND el."DeptID" = $1
+           AND el.instance_id = $2
+       )
+     ORDER BY s."USN"`,
+    [deptid, instanceId]
+  );
+  return res.rows.map((r) => ({ usn: r.usn, name: r.name }));
+}
+
 module.exports = {
   getPreferencesByCoursecode,
   getPreferencesByCoursecodes,
   countPreferencesByCoursecodes,
   getStudentListsForCoursecodes,
-  getUnallocatedStudentsByGroup
-  ,getPendingStudentsByDept
+  getStudentListsForCoursecodesByInstance,
+  getUnallocatedStudentsByGroup,
+  getUnallocatedStudentsByGroupAndInstance,
+  getPendingStudentsByDept,
+  getPendingStudentsByDeptAndInstance
 };

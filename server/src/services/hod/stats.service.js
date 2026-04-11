@@ -37,18 +37,24 @@ async function updateMinMax(updates, deptid) {
   return electivesModel.updateMinMaxBatch(updates, deptid);
 }
 
-async function resetAllocations(deptid) {
-  return electivesModel.resetAllocationsByDept(deptid);
+async function resetAllocations(deptid, instanceId = null) {
+  return electivesModel.resetAllocationsByScope(deptid, instanceId);
 }
 
-async function listElectiveStudents(deptid) {
-  const groups = await electivesModel.getDistinctGroups(deptid);
+async function runAllocations(deptid, instanceId) {
+  return electivesModel.allocateByDeptAndInstance(deptid, instanceId);
+}
+
+async function listElectiveStudents(deptid, instanceId = null) {
+  const groups = await electivesModel.getDistinctGroups(deptid, instanceId);
   const result = [];
 
   for (const g of groups) {
-    const courses = await electivesModel.getCoursesByGroup(deptid, g);
+    const courses = await electivesModel.getCoursesByGroup(deptid, g, instanceId);
     const coursecodes = courses.map((c) => c.coursecode);
-    const studentRows = await prefsService.studentListsForCoursecodes(coursecodes, deptid);
+    const studentRows = instanceId == null
+      ? await prefsService.studentListsForCoursecodes(coursecodes, deptid)
+      : await prefsService.studentListsForCoursecodesByInstance(coursecodes, deptid, instanceId);
 
     const studentsMap = {};
     for (const r of studentRows) {
@@ -64,14 +70,18 @@ async function listElectiveStudents(deptid) {
     result.push({ electivegroup: g, courses: coursesWithStudents });
   }
 
-  const allocatedGroups = await electivesModel.getDistinctGroupsWithAllocations(deptid);
+  const allocatedGroups = await electivesModel.getDistinctGroupsWithAllocations(deptid, instanceId);
   const unallocatedGroups = [];
   for (const g of allocatedGroups) {
-    const students = await prefsService.unallocatedStudentsByGroup(deptid, g);
+    const students = instanceId == null
+      ? await prefsService.unallocatedStudentsByGroup(deptid, g)
+      : await prefsService.unallocatedStudentsByGroupAndInstance(deptid, g, instanceId);
     unallocatedGroups.push({ electivegroup: g, students });
   }
 
-  const pendingStudents = await prefsService.pendingStudentsByDept(deptid);
+  const pendingStudents = instanceId == null
+    ? await prefsService.pendingStudentsByDept(deptid)
+    : await prefsService.pendingStudentsByDeptAndInstance(deptid, instanceId);
 
   return { groups: result, unallocatedGroups, pendingStudents };
 }
@@ -80,5 +90,6 @@ module.exports = {
   listElectivesStats,
   updateMinMax,
   resetAllocations,
+  runAllocations,
   listElectiveStudents
 };
