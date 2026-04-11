@@ -11,6 +11,25 @@ const TABS = [
 	{ id: 'allocation', label: 'Allocation' }
 ];
 
+const ALLOCATION_METHOD_OPTIONS = [
+	{
+		value: 'preference_cgpa',
+		label: 'Preference and CGPA Based Allocation',
+		description: 'Runs the current preference-based allocation and uses CGPA when a preference round is oversubscribed.'
+	},
+	{
+		value: 'preference_fcfs',
+		label: 'Preference and FCFS Based Allocation',
+		description: 'Keeps the same preference rounds, but fills oversubscribed seats by earliest submitted preference.'
+	}
+];
+
+function getAllocationMethodLabel(method) {
+	return method === 'preference_fcfs'
+		? 'Preference and FCFS Based Allocation'
+		: 'Preference and CGPA Based Allocation';
+}
+
 function formatDateOnly(value) {
 	if (!value) return '-';
 	return String(value).slice(0, 10);
@@ -456,9 +475,6 @@ function ElectivesTab({ instanceId }) {
 		sem: '',
 	});
 	const [error, setError] = useState('');
-	const [search, setSearch] = useState('');
-	const [page, setPage] = useState(1);
-	const PAGE_SIZE = 10;
 
 	function showNotification(message, type = 'success') {
 		setNotification({ show: true, message, type });
@@ -608,24 +624,6 @@ function ElectivesTab({ instanceId }) {
 		handleDelete(id);
 	}
 
-	const filteredElectives = useMemo(() => {
-		const q = search.trim().toLowerCase();
-		if (!q) return electives;
-		return electives.filter((el) => (
-			String(el.electiveCode || '').toLowerCase().includes(q) ||
-			String(el.electiveName || '').toLowerCase().includes(q) ||
-			String(getGroupName(el.groupId) || '').toLowerCase().includes(q) ||
-			String(el.division || '').toLowerCase().includes(q) ||
-			String(el.max || '').toLowerCase().includes(q) ||
-			String(el.preReq || '').toLowerCase().includes(q) ||
-			String(el.compulsoryPrereq ? 'Yes' : 'No').toLowerCase().includes(q) ||
-			String(el.sem || '').toLowerCase().includes(q)
-		));
-	}, [electives, search]);
-
-	const totalPages = Math.max(1, Math.ceil(filteredElectives.length / PAGE_SIZE));
-	const paginatedElectives = filteredElectives.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
 	return (
 		<>
 			{notification.show ? (
@@ -634,18 +632,7 @@ function ElectivesTab({ instanceId }) {
 					<button type="button" onClick={() => setNotification({ show: false, message: '', type: 'success' })} className="ml-2 text-white/80 hover:text-white">✕</button>
 				</div>
 			) : null}
-			<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<div className="relative w-full sm:w-80">
-					<input
-						value={search}
-						onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-						placeholder="Search electives..."
-						className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-					/>
-					<svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-					</svg>
-				</div>
+			<div className="mb-4 flex justify-end">
 				<button onClick={() => openModal()} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
 					<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
 						<path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -671,12 +658,12 @@ function ElectivesTab({ instanceId }) {
 						</tr>
 					</thead>
 					<tbody className="divide-y divide-gray-100 bg-white">
-						{paginatedElectives.length === 0 ? (
-							<tr><td colSpan="10" className="py-10 text-center text-sm text-gray-500">{electives.length === 0 ? 'No electives added yet' : 'No electives match your search'}</td></tr>
+						{electives.length === 0 ? (
+							<tr><td colSpan="10" className="py-10 text-center text-sm text-gray-500">No electives added yet</td></tr>
 						) : (
-							paginatedElectives.map((el, i) => (
+							electives.map((el, i) => (
 								<tr key={el.id ?? `${el.electiveCode}-${i}`} className={`transition-colors hover:bg-blue-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{(page - 1) * PAGE_SIZE + i + 1}</td>
+									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{i + 1}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-gray-900">{el.electiveCode}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{el.electiveName}</td>
 									<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{getGroupName(el.groupId)}</td>
@@ -709,28 +696,6 @@ function ElectivesTab({ instanceId }) {
 					</tbody>
 				</table>
 			</div>
-
-			{filteredElectives.length > PAGE_SIZE ? (
-				<div className="mt-4 flex items-center justify-end gap-2">
-					<button
-						type="button"
-						onClick={() => setPage((current) => Math.max(1, current - 1))}
-						disabled={page === 1}
-						className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-					>
-						Prev
-					</button>
-					<span className="text-sm text-gray-700">Page {page} of {totalPages}</span>
-					<button
-						type="button"
-						onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-						disabled={page === totalPages}
-						className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-					>
-						Next
-					</button>
-				</div>
-			) : null}
 
 			{isModalOpen ? (
 				<Modal title={editId ? 'Edit Elective' : 'Add Elective'} onClose={closeModal}>
@@ -825,6 +790,8 @@ function AllocationTab({ instanceId }) {
 	const [unallocatedSearch, setUnallocatedSearch] = useState('');
 	const [unallocatedPage, setUnallocatedPage] = useState(1);
 	const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+	const [allocationMethod, setAllocationMethod] = useState('preference_cgpa');
+	const [lastAllocatedMethod, setLastAllocatedMethod] = useState('');
 	const pageSize = 10;
 
 	useEffect(() => {
@@ -846,6 +813,9 @@ function AllocationTab({ instanceId }) {
 			const groupsData = res.data.groups || [];
 			const unallocatedData = res.data.unallocatedGroups || [];
 			const pendingData = res.data.pendingStudents || [];
+			const persistedMethod = res.data.allocationMethod || '';
+			setLastAllocatedMethod(persistedMethod);
+			setAllocationMethod(persistedMethod || 'preference_cgpa');
 			const flatRows = [];
 			const flattenedCourseStats = [];
 
@@ -957,11 +927,14 @@ function AllocationTab({ instanceId }) {
 		setAllocating(true);
 		setError('');
 		try {
-			const res = await allocateElectiveStudents(resolvedInstanceId);
+			const res = await allocateElectiveStudents(resolvedInstanceId, allocationMethod);
 			const rejectedCourses = res.data?.rejectedCourses || [];
+			const resolvedMethod = res.data?.method || allocationMethod;
+			const methodLabel = getAllocationMethodLabel(resolvedMethod);
+			setLastAllocatedMethod(resolvedMethod);
 			const message = rejectedCourses.length > 0
-				? `${res.data?.message || 'Allocation completed successfully.'} Rejected: ${rejectedCourses.map((course) => course.coursecode).join(', ')}`
-				: (res.data?.message || 'Allocation completed successfully.');
+				? `${methodLabel}: ${res.data?.message || 'Allocation completed successfully.'} Rejected: ${rejectedCourses.map((course) => course.coursecode).join(', ')}`
+				: `${methodLabel}: ${res.data?.message || 'Allocation completed successfully.'}`;
 			showNotification(message);
 			await loadAllocationData();
 		} catch (err) {
@@ -1047,13 +1020,45 @@ function AllocationTab({ instanceId }) {
 				</div>
 			</div>
 
-			<div className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${pendingStudents.length === 0 ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+			{/* <div className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${pendingStudents.length === 0 ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
 				{pendingStudents.length === 0
 					? 'All students in this instance have registered their elective preferences. Allocation can be executed now.'
 					: `${pendingStudents.length} student(s) in this instance have not registered preferences yet. You can still allocate, but the result will only include submitted preferences.`}
-			</div>
+			</div> */}
+
+			{lastAllocatedMethod ? (
+				<div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-900">
+					Allocation completed using: {getAllocationMethodLabel(lastAllocatedMethod)}
+				</div>
+			) : null}
 
 			{error ? <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+
+			<div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+				<div className="mb-3 text-sm font-semibold text-slate-900">Select Allocation Process</div>
+				<div className="grid gap-3 lg:grid-cols-2">
+					{ALLOCATION_METHOD_OPTIONS.map((option) => (
+						<label
+							key={option.value}
+							className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${allocationMethod === option.value ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-slate-50 hover:border-slate-300'}`}
+						>
+							<input
+								type="radio"
+								name="allocationMethod"
+								value={option.value}
+								checked={allocationMethod === option.value}
+								onChange={(e) => setAllocationMethod(e.target.value)}
+								className="mt-1 h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+								disabled={allocating || loading}
+							/>
+							<span>
+								<span className="block text-sm font-semibold text-slate-900">{option.label}</span>
+								<span className="mt-1 block text-sm text-slate-600">{option.description}</span>
+							</span>
+						</label>
+					))}
+				</div>
+			</div>
 
 			<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
 				<div className="flex flex-wrap items-center gap-3">
@@ -1133,21 +1138,11 @@ function AllocationTab({ instanceId }) {
 				</div>
 				{filteredCourseStats.length > pageSize ? (
 					<div className="mt-4 flex items-center justify-end gap-2">
-						<button
-							type="button"
-							onClick={() => setSummaryPage((current) => Math.max(1, current - 1))}
-							disabled={summaryPage === 1}
-							className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-						>
+						<button type="button" onClick={() => setSummaryPage((current) => Math.max(1, current - 1))} disabled={summaryPage === 1} className="rounded border px-3 py-1 text-sm disabled:opacity-50">
 							Prev
 						</button>
 						<span className="text-sm text-gray-700">Page {summaryPage} of {summaryTotalPages}</span>
-						<button
-							type="button"
-							onClick={() => setSummaryPage((current) => Math.min(summaryTotalPages, current + 1))}
-							disabled={summaryPage === summaryTotalPages}
-							className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-						>
+						<button type="button" onClick={() => setSummaryPage((current) => Math.min(summaryTotalPages, current + 1))} disabled={summaryPage === summaryTotalPages} className="rounded border px-3 py-1 text-sm disabled:opacity-50">
 							Next
 						</button>
 					</div>
@@ -1171,135 +1166,116 @@ function AllocationTab({ instanceId }) {
 					</div>
 				</div>
 				<div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-				<div className="overflow-x-auto">
-					<table className="min-w-full divide-y divide-gray-200 text-sm">
-						<thead className="bg-blue-600 text-white">
-							<tr>
-								<th className="px-5 py-3 text-left">S.No</th>
-								<th className="px-5 py-3 text-left">Group</th>
-								<th className="px-5 py-3 text-left">Course Code</th>
-								<th className="px-5 py-3 text-left">Course Name</th>
-								<th className="px-5 py-3 text-left">USN</th>
-								<th className="px-5 py-3 text-left">Student Name</th>
-								<th className="px-5 py-3 text-center">Preference</th>
-							</tr>
-						</thead>
-						<tbody className="divide-y divide-gray-100 bg-white">
-							{loading ? (
-								<tr><td colSpan="7" className="py-10 text-center text-sm text-gray-500">Loading allocation data...</td></tr>
-							) : filteredRows.length === 0 ? (
-								<tr><td colSpan="7" className="py-10 text-center text-sm text-gray-500">{rows.length === 0 ? 'No allocations done yet' : 'No students match your search'}</td></tr>
-							) : (
-								paginatedRows.map((row, index) => (
-									<tr key={`${row.coursecode}-${row.usn}-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-										<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.serialNumber}</td>
-										<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.electivegroup}</td>
-										<td className="whitespace-nowrap px-5 py-3 text-sm font-medium text-gray-900">{row.coursecode}</td>
-										<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.courseName}</td>
-										<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.usn}</td>
-										<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.name}</td>
-										<td className="whitespace-nowrap px-5 py-3 text-center text-sm text-gray-700">{row.preference}</td>
-									</tr>
-								))
-							)}
-						</tbody>
-					</table>
+					<div className="overflow-x-auto">
+						<table className="min-w-full divide-y divide-gray-200 text-sm">
+							<thead className="bg-blue-600 text-white">
+								<tr>
+									<th className="px-5 py-3 text-left">S.No</th>
+									<th className="px-5 py-3 text-left">Group</th>
+									<th className="px-5 py-3 text-left">Course Code</th>
+									<th className="px-5 py-3 text-left">Course Name</th>
+									<th className="px-5 py-3 text-left">USN</th>
+									<th className="px-5 py-3 text-left">Student Name</th>
+									<th className="px-5 py-3 text-center">Preference</th>
+								</tr>
+							</thead>
+							<tbody className="divide-y divide-gray-100 bg-white">
+								{loading ? (
+									<tr><td colSpan="7" className="py-10 text-center text-sm text-gray-500">Loading allocation data...</td></tr>
+								) : filteredRows.length === 0 ? (
+									<tr><td colSpan="7" className="py-10 text-center text-sm text-gray-500">{rows.length === 0 ? 'No allocations done yet' : 'No students match your search'}</td></tr>
+								) : (
+									paginatedRows.map((row, index) => (
+										<tr key={`${row.coursecode}-${row.usn}-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+											<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.serialNumber}</td>
+											<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.electivegroup}</td>
+											<td className="whitespace-nowrap px-5 py-3 text-sm font-medium text-gray-900">{row.coursecode}</td>
+											<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.courseName}</td>
+											<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.usn}</td>
+											<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.name}</td>
+											<td className="whitespace-nowrap px-5 py-3 text-center text-sm text-gray-700">{row.preference}</td>
+										</tr>
+									))
+								)}
+							</tbody>
+						</table>
+					</div>
 				</div>
-
-					{filteredRows.length > pageSize ? (
-						<div className="flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-4">
-							<button
-								type="button"
-								onClick={() => setPage((current) => Math.max(1, current - 1))}
-								disabled={page === 1}
-								className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-							>
-								Prev
-							</button>
-							<span className="text-sm text-gray-700">Page {page} of {totalPages}</span>
-							<button
-								type="button"
-								onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-								disabled={page === totalPages}
-								className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-							>
-								Next
-							</button>
-						</div>
-					) : null}
-				</div>
+				{filteredRows.length > pageSize ? (
+					<div className="mt-4 flex items-center justify-end gap-2">
+						<button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1} className="rounded border px-3 py-1 text-sm disabled:opacity-50">
+							Prev
+						</button>
+						<span className="text-sm text-gray-700">Page {page} of {totalPages}</span>
+						<button type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages} className="rounded border px-3 py-1 text-sm disabled:opacity-50">
+							Next
+						</button>
+					</div>
+				) : null}
 			</div>
 
-			<div className="mt-6">
+			<div className="mt-8">
 				<h3 className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center text-base font-semibold text-blue-900 sm:text-lg">Students with unallocated elective</h3>
 				<div className="mb-4 flex justify-start">
-					<div className="relative w-full sm:w-80">
+					<div className="relative w-full sm:w-96">
 						<input
 							value={unallocatedSearch}
 							onChange={(e) => { setUnallocatedSearch(e.target.value); setUnallocatedPage(1); }}
 							placeholder="Search unallocated students..."
 							className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
 						/>
-						<svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
 						</svg>
 					</div>
 				</div>
-				<div className="mt-2 overflow-x-auto rounded-xl border border-gray-200">
-					<table className="min-w-full divide-y divide-gray-200 text-sm">
-						<thead className="bg-blue-600 text-white">
-							<tr>
-								<th className="px-3 py-3 text-left">S.No</th>
-								<th className="px-3 py-3 text-left">USN</th>
-								<th className="px-3 py-3 text-left">Name</th>
-								<th className="px-3 py-3 text-left">Elective Group</th>
-							</tr>
-						</thead>
-						<tbody className="divide-y divide-gray-100 bg-white">
-							{paginatedUnallocatedRows.length === 0 ? (
-								<tr><td colSpan="4" className="py-6 text-center text-sm text-gray-500">No allocated elective groups found yet.</td></tr>
-							) : (
-								paginatedUnallocatedRows.map((row, index) => {
-									if (row.type === 'message') {
+				<div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+					<div className="overflow-x-auto">
+						<table className="min-w-full divide-y divide-gray-200 text-sm">
+							<thead className="bg-blue-600 text-white">
+								<tr>
+									<th className="px-5 py-3 text-left">S.No</th>
+									<th className="px-5 py-3 text-left">Group</th>
+									<th className="px-5 py-3 text-left">USN</th>
+									<th className="px-5 py-3 text-left">Student Name</th>
+								</tr>
+							</thead>
+							<tbody className="divide-y divide-gray-100 bg-white">
+								{paginatedUnallocatedRows.length === 0 ? (
+									<tr><td colSpan="4" className="py-6 text-center text-sm text-gray-500">No allocated elective groups found yet.</td></tr>
+								) : (
+									paginatedUnallocatedRows.map((row, index) => {
+										if (row.type === 'message') {
+											return (
+												<tr key={`${row.electivegroup}-message-${index}`} className="bg-green-50">
+													<td colSpan="4" className="px-5 py-3 text-sm text-green-800">
+														<b>All students who registered their preferences for the elective group {row.electivegroup} are allocated.</b>
+													</td>
+												</tr>
+											);
+										}
+
 										return (
-											<tr key={`msg-${row.electivegroup}-${index}`}>
-												<td colSpan="4" className="px-3 py-3 text-center text-sm text-gray-700">
-													<b>All students who registered their preferences for the elective group {row.electivegroup} are allocated.</b>
-												</td>
+											<tr key={`${row.electivegroup}-${row.usn}-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+												<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.serialNumber}</td>
+												<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.electivegroup}</td>
+												<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.usn}</td>
+												<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.name}</td>
 											</tr>
 										);
-									}
-
-									return (
-										<tr key={`${row.electivegroup}-${row.usn}-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-											<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{row.serialNumber}</td>
-											<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{row.usn}</td>
-											<td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-gray-900">{row.name}</td>
-											<td className="whitespace-nowrap px-3 py-3 text-sm text-gray-700">{row.electivegroup}</td>
-										</tr>
-									);
-								})
-							)}
-						</tbody>
-					</table>
+									})
+								)}
+							</tbody>
+						</table>
+					</div>
 				</div>
 				{filteredUnallocatedRows.length > pageSize ? (
 					<div className="mt-4 flex items-center justify-end gap-2">
-						<button
-							type="button"
-							onClick={() => setUnallocatedPage((current) => Math.max(1, current - 1))}
-							disabled={unallocatedPage === 1}
-							className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-						>
+						<button type="button" onClick={() => setUnallocatedPage((current) => Math.max(1, current - 1))} disabled={unallocatedPage === 1} className="rounded border px-3 py-1 text-sm disabled:opacity-50">
 							Prev
 						</button>
 						<span className="text-sm text-gray-700">Page {unallocatedPage} of {unallocatedTotalPages}</span>
-						<button
-							type="button"
-							onClick={() => setUnallocatedPage((current) => Math.min(unallocatedTotalPages, current + 1))}
-							disabled={unallocatedPage === unallocatedTotalPages}
-							className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-						>
+						<button type="button" onClick={() => setUnallocatedPage((current) => Math.min(unallocatedTotalPages, current + 1))} disabled={unallocatedPage === unallocatedTotalPages} className="rounded border px-3 py-1 text-sm disabled:opacity-50">
 							Next
 						</button>
 					</div>

@@ -2,6 +2,14 @@ const statsService = require('../../services/hod/stats.service');
 const userModel = require('../../models/user.model');
 const xlsx = require('xlsx');
 
+const ALLOWED_ALLOCATION_METHODS = new Set([
+  'existing',
+  'fcfs',
+  'cgpa',
+  'preference_cgpa',
+  'preference_fcfs'
+]);
+
 exports.listElectives = async (req, res) => {
   try {
     const deptid = req.user && req.user.deptid;
@@ -44,9 +52,13 @@ exports.allocateElectiveStudents = async (req, res) => {
     const deptid = req.user && req.user.deptid;
     const rawInstance = req.query.instanceId ?? req.body?.instanceId ?? req.body?.instance_id;
     const instanceId = rawInstance == null ? null : (Number.isInteger(Number(rawInstance)) ? Number(rawInstance) : null);
+    const method = String(req.body?.method ?? req.query?.method ?? 'preference_cgpa').toLowerCase();
     if (!deptid) return res.status(401).json({ error: 'Missing department id' });
     if (instanceId == null) return res.status(400).json({ error: 'Missing instance id' });
-    const data = await statsService.runAllocations(deptid, instanceId);
+    if (!ALLOWED_ALLOCATION_METHODS.has(method)) {
+      return res.status(400).json({ error: 'Invalid allocation method' });
+    }
+    const data = await statsService.runAllocations(deptid, instanceId, method);
     return res.json(data);
   } catch (error) {
     return res.status(400).json({ error: error.message || 'Unable to allocate electives' });

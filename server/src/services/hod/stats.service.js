@@ -41,11 +41,12 @@ async function resetAllocations(deptid, instanceId = null) {
   return electivesModel.resetAllocationsByScope(deptid, instanceId);
 }
 
-async function runAllocations(deptid, instanceId) {
-  return electivesModel.allocateByDeptAndInstance(deptid, instanceId);
+async function runAllocations(deptid, instanceId, method) {
+  return electivesModel.allocateByDeptAndInstance(deptid, instanceId, method);
 }
 
 async function listElectiveStudents(deptid, instanceId = null) {
+  const allocationMethod = await electivesModel.getAllocationMethodForInstance(deptid, instanceId);
   const groups = await electivesModel.getDistinctGroups(deptid, instanceId);
   const result = [];
 
@@ -83,7 +84,7 @@ async function listElectiveStudents(deptid, instanceId = null) {
     ? await prefsService.pendingStudentsByDept(deptid)
     : await prefsService.pendingStudentsByDeptAndInstance(deptid, instanceId);
 
-  return { groups: result, unallocatedGroups, pendingStudents };
+  return { groups: result, unallocatedGroups, pendingStudents, allocationMethod };
 }
 
 module.exports = {

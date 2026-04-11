@@ -10,10 +10,16 @@ async function ensureTable() {
 			start_date DATE,
 			end_date DATE,
 			is_active BOOLEAN NOT NULL DEFAULT FALSE,
+			allocation_method VARCHAR(40),
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			UNIQUE (deptid, academic_year)
 		)
+	`);
+
+	await pool.query(`
+		ALTER TABLE public.hod_academic_year_instances
+		ADD COLUMN IF NOT EXISTS allocation_method VARCHAR(40)
 	`);
 }
 
@@ -39,6 +45,7 @@ function mapRow(row) {
 		startDate: toDateOnly(row.start_date),
 		endDate: toDateOnly(row.end_date),
 		isActive: row.is_active,
+		allocationMethod: row.allocation_method || null,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at
 	};
@@ -46,7 +53,7 @@ function mapRow(row) {
 
 async function listByDepartment(deptid) {
 	const result = await pool.query(
-		`SELECT id, deptid, academic_year, title, start_date, end_date, is_active, created_at, updated_at
+		`SELECT id, deptid, academic_year, title, start_date, end_date, is_active, allocation_method, created_at, updated_at
 		 FROM public.hod_academic_year_instances
 		 WHERE deptid = $1
 		 ORDER BY academic_year DESC, id DESC`,
@@ -60,7 +67,7 @@ async function createInstance({ deptid, academicYear, title, startDate, endDate,
 		`INSERT INTO public.hod_academic_year_instances
 			(deptid, academic_year, title, start_date, end_date, is_active)
 		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, deptid, academic_year, title, start_date, end_date, is_active, created_at, updated_at`,
+		 RETURNING id, deptid, academic_year, title, start_date, end_date, is_active, allocation_method, created_at, updated_at`,
 		[deptid, academicYear, title, startDate || null, endDate || null, Boolean(isActive)]
 	);
 	return mapRow(result.rows[0]);
@@ -75,7 +82,7 @@ async function updateInstance({ id, deptid, academicYear, title, startDate, endD
 			end_date = $4,
 			updated_at = NOW()
 		 WHERE id = $5 AND deptid = $6
-		 RETURNING id, deptid, academic_year, title, start_date, end_date, is_active, created_at, updated_at`,
+		 RETURNING id, deptid, academic_year, title, start_date, end_date, is_active, allocation_method, created_at, updated_at`,
 		[academicYear, title, startDate || null, endDate || null, id, deptid]
 	);
 	return result.rows[0] ? mapRow(result.rows[0]) : null;
@@ -98,7 +105,7 @@ async function setActive({ id, deptid }) {
 			 SET is_active = TRUE,
 				 updated_at = NOW()
 			 WHERE id = $1 AND deptid = $2
-			 RETURNING id, deptid, academic_year, title, start_date, end_date, is_active, created_at, updated_at`,
+			 RETURNING id, deptid, academic_year, title, start_date, end_date, is_active, allocation_method, created_at, updated_at`,
 			[id, deptid]
 		);
 
@@ -116,7 +123,7 @@ async function deleteInstance({ id, deptid }) {
 	const result = await pool.query(
 		`DELETE FROM public.hod_academic_year_instances
 		 WHERE id = $1 AND deptid = $2
-		 RETURNING id, deptid, academic_year, title, start_date, end_date, is_active, created_at, updated_at`,
+		 RETURNING id, deptid, academic_year, title, start_date, end_date, is_active, allocation_method, created_at, updated_at`,
 		[id, deptid]
 	);
 	return result.rows[0] ? mapRow(result.rows[0]) : null;

@@ -1,5 +1,32 @@
 const pool = require('../config/db');
 
+const ALLOCATION_METHODS = {
+  PREFERENCE_CGPA: 'preference_cgpa',
+  PREFERENCE_FCFS: 'preference_fcfs'
+};
+
+function normalizeAllocationMethod(method) {
+  switch (method) {
+    case 'existing':
+    case 'cgpa':
+    case ALLOCATION_METHODS.PREFERENCE_CGPA:
+      return ALLOCATION_METHODS.PREFERENCE_CGPA;
+    case 'fcfs':
+    case ALLOCATION_METHODS.PREFERENCE_FCFS:
+      return ALLOCATION_METHODS.PREFERENCE_FCFS;
+    default:
+      return ALLOCATION_METHODS.PREFERENCE_CGPA;
+  }
+}
+
+function buildApplicantOrdering(method) {
+  if (normalizeAllocationMethod(method) === ALLOCATION_METHODS.PREFERENCE_FCFS) {
+    return 'ORDER BY ep.created_at ASC NULLS LAST, ep.id ASC';
+  }
+
+  return 'ORDER BY s."CGPA" DESC';
+}
+
 function buildScopedWhereClause(deptid, instanceId, startingIndex = 1) {
   const params = [deptid];
   let where = `WHERE "DeptID" = $${startingIndex}`;
@@ -73,6 +100,30 @@ async function getPreferenceCountsForCourses(coursecodes) {
     [coursecodes]
   );
   return res.rows.map((r) => ({ coursecode: r.coursecode, preference: Number(r.preference), count: Number(r.cnt) }));
+}
+
+async function getAllocationMethodForInstance(deptid, instanceId) {
+  if (instanceId == null) return null;
+  const res = await pool.query(
+    `SELECT allocation_method
+     FROM public.hod_academic_year_instances
+     WHERE id = $1 AND deptid = $2
+     LIMIT 1`,
+    [instanceId, deptid]
+  );
+  const storedMethod = res.rows[0]?.allocation_method || null;
+  return storedMethod ? normalizeAllocationMethod(storedMethod) : null;
+}
+
+async function setAllocationMethodForInstance(client, deptid, instanceId, method) {
+  if (instanceId == null) return;
+  await client.query(
+    `UPDATE public.hod_academic_year_instances
+     SET allocation_method = $1,
+         updated_at = NOW()
+     WHERE id = $2 AND deptid = $3`,
+    [method ? normalizeAllocationMethod(method) : null, instanceId, deptid]
+  );
 }
 
 async function updateMinMaxBatch(updates, deptid) {
@@ -157,6 +208,7 @@ async function resetAllocationsByScope(deptid, instanceId = null) {
        WHERE "DeptID" = $1 AND instance_id = $2`,
       [deptid, instanceId]
     );
+    await setAllocationMethodForInstance(client, deptid, instanceId, null);
     await client.query('COMMIT');
     return { success: true };
   } catch (err) {
@@ -167,10 +219,12 @@ async function resetAllocationsByScope(deptid, instanceId = null) {
   }
 }
 
-async function allocateByDeptAndInstance(deptid, instanceId) {
+async function allocateByDeptAndInstance(deptid, instanceId, method = ALLOCATION_METHODS.PREFERENCE_CGPA) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const allocationMethod = normalizeAllocationMethod(method);
+    const applicantOrderBy = buildApplicantOrdering(allocationMethod);
 
     const preferenceCountRes = await client.query(
       `SELECT COUNT(*)::int AS count
@@ -330,7 +384,7 @@ async function allocateByDeptAndInstance(deptid, instanceId) {
                AND ep.preference = $4
                AND el."DeptID" = $1
                AND el.instance_id = $2
-             ORDER BY s."CGPA" DESC${applicantLimitClause}`,
+             ${applicantOrderBy}${applicantLimitClause}`,
             applicantParams
           );
 
@@ -398,9 +452,11 @@ async function allocateByDeptAndInstance(deptid, instanceId) {
       }
     }
 
+    await setAllocationMethodForInstance(client, deptid, instanceId, allocationMethod);
     await client.query('COMMIT');
     return {
       success: true,
+      method: allocationMethod,
       rejectedCourses,
       message: rejectedCourses.length > 0
         ? `Allocation completed. ${rejectedCourses.length} elective(s) were rejected due to low first preference count.`
@@ -415,10 +471,13 @@ async function allocateByDeptAndInstance(deptid, instanceId) {
 }
 
 module.exports = {
+  ALLOCATION_METHODS,
+  normalizeAllocationMethod,
   getDistinctGroups,
   getDistinctGroupsWithAllocations,
   getCoursesByGroup,
   getPreferenceCountsForCourses,
+  getAllocationMethodForInstance,
   updateMinMaxBatch,
   resetAllocationsByDept,
   resetAllocationsByScope,

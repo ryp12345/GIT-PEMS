@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import ElectiveInstancePage from './ElectiveInstancePage';
 import ElectiveInstanceViewPage from './ElectiveInstanceViewPage';
 import StatsPage from './StatsPage';
-import { getElectiveStudents } from '../../api/hod/stats.api';
+import { getElectiveStudents, getElectivesStats } from '../../api/hod/stats.api';
 
 function DashboardPlaceholder({ title }) {
 	return (
@@ -41,7 +41,10 @@ export default function HODDashboard() {
 		if (location.pathname === '/' || location.pathname === '/dashboard') {
 			return (
 				<>
-					<PendingStudentsCard />
+					<OverviewCards />
+					<div className="mt-6">
+						<PendingStudentsCard />
+					</div>
 				</>
 			);
 		}
@@ -82,6 +85,90 @@ export default function HODDashboard() {
 	      {error ? <div className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
 			
+	    </div>
+	  );
+	}
+
+	function OverviewCards() {
+	  const [loading, setLoading] = useState(true);
+	  const [error, setError] = useState('');
+	  const [metrics, setMetrics] = useState({});
+
+	  useEffect(() => {
+	    let mounted = true;
+	    async function load() {
+	      setLoading(true);
+	      try {
+	        const [studentsRes, statsRes] = await Promise.all([getElectiveStudents(), getElectivesStats()]);
+	        if (!mounted) return;
+
+	        // total allocated = sum of students in groups -> courses -> students
+	        const groups = (studentsRes.data && studentsRes.data.groups) || [];
+	        let totalAllocated = 0;
+	        for (const g of groups) {
+	          for (const c of (g.courses || [])) {
+	            totalAllocated += (c.students || []).length;
+	          }
+	        }
+
+	        const pendingCount = (studentsRes.data && studentsRes.data.pendingStudents && studentsRes.data.pendingStudents.length) || 0;
+
+	        // compute capacity and oversubscription from electives stats
+	        const statGroups = (statsRes.data && statsRes.data.groups) || [];
+	        let totalSeats = 0;
+	        let totalAllocatedSeats = 0;
+	        const oversubscribed = [];
+	        for (const g of statGroups) {
+	          for (const c of (g.courses || [])) {
+	            const max = Number(c.max || 0);
+	            const totalAlloc = Number(c.total_allocations || 0);
+	            totalSeats += max;
+	            totalAllocatedSeats += totalAlloc;
+	            const firstPrefs = Number(c.prefs && c.prefs[1] ? c.prefs[1] : 0);
+	            if (max > 0 && firstPrefs > max) {
+	              oversubscribed.push({ coursecode: c.coursecode, courseName: c.courseName || c.coursename || c.coursecode, demand: firstPrefs, max });
+	            }
+	          }
+	        }
+
+	        const utilization = totalSeats === 0 ? 0 : Math.round((totalAllocatedSeats / totalSeats) * 100);
+
+	        setMetrics({ totalAllocated, pendingCount, oversubscribedCount: oversubscribed.length, oversubscribedTop: oversubscribed.slice(0, 3), utilization });
+	      } catch (err) {
+	        if (!mounted) return;
+	        setError(err?.response?.data?.error || err.message || 'Failed to load stats');
+	      } finally {
+	        if (mounted) setLoading(false);
+	      }
+	    }
+	    load();
+	    return () => { mounted = false; };
+	  }, []);
+
+	  return (
+	    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+		<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				<div className="p-4 rounded-lg border border-indigo-100 bg-indigo-50">
+					<div className="text-sm text-indigo-600">Total Allocated</div>
+					<div className="mt-2 text-2xl font-semibold text-indigo-700">{loading ? '—' : metrics.totalAllocated ?? 0}</div>
+					<div className="text-xs text-indigo-600 mt-1">Students allocated to electives</div>
+				</div>
+
+				<div className="p-4 rounded-lg border border-amber-100 bg-amber-50">
+					<div className="text-sm text-amber-700">Pending / Unassigned</div>
+					<div className="mt-2 text-2xl font-semibold text-amber-800">{loading ? '—' : metrics.pendingCount ?? 0}</div>
+					<div className="text-xs text-amber-700 mt-1">Students without submitted or matched preferences</div>
+				</div>
+
+
+
+				<div className="p-4 rounded-lg border border-green-100 bg-green-50">
+					<div className="text-sm text-green-600">Capacity Utilization</div>
+					<div className="mt-2 text-2xl font-semibold text-green-700">{loading ? '—' : `${metrics.utilization ?? 0}%`}</div>
+					<div className="text-xs text-green-600 mt-1">Overall seats filled</div>
+				</div>
+	      </div>
+	      {error ? <div className="mt-4 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}
 	    </div>
 	  );
 	}
