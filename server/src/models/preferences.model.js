@@ -80,7 +80,7 @@ async function getUnallocatedStudentsByGroup(deptid, electivegroup) {
 
 async function getUnallocatedStudentsByGroupAndInstance(deptid, electivegroup, instanceId) {
   const res = await pool.query(
-    `SELECT DISTINCT s."USN" AS usn, s."Name" AS name
+    `SELECT DISTINCT s."USN" AS usn, s."Name" AS name, s."UID" AS uid
      FROM public.students s
      WHERE s."DeptID" = $1
        AND s.instance_id = $3
@@ -101,25 +101,25 @@ async function getUnallocatedStudentsByGroupAndInstance(deptid, electivegroup, i
      ORDER BY s."USN"`,
     [deptid, electivegroup, instanceId]
   );
-  return res.rows.map((r) => ({ usn: r.usn, name: r.name }));
+  return res.rows.map((r) => ({ usn: r.usn, name: r.name, uid: r.uid }));
 }
 
 async function getPendingStudentsByDept(deptid) {
   // Students in the department who have not submitted any elective_preferences
   const res = await pool.query(
-    `SELECT s."USN" AS usn, s."Name" AS name
+    `SELECT s."USN" AS usn, s."Name" AS name, s."UID" AS uid
      FROM public.students s
      WHERE s."DeptID" = $1
        AND s."USN" NOT IN (SELECT ep."USN" FROM public.elective_preferences ep)
      ORDER BY s."USN"`,
     [deptid]
   );
-  return res.rows.map((r) => ({ usn: r.usn, name: r.name }));
+  return res.rows.map((r) => ({ usn: r.usn, name: r.name, uid: r.uid }));
 }
 
 async function getPendingStudentsByDeptAndInstance(deptid, instanceId) {
   const res = await pool.query(
-    `SELECT s."USN" AS usn, s."Name" AS name
+    `SELECT s."USN" AS usn, s."Name" AS name, s."UID" AS uid
      FROM public.students s
      WHERE s."DeptID" = $1
        AND s.instance_id = $2
@@ -135,7 +135,7 @@ async function getPendingStudentsByDeptAndInstance(deptid, instanceId) {
      ORDER BY s."USN"`,
     [deptid, instanceId]
   );
-  return res.rows.map((r) => ({ usn: r.usn, name: r.name }));
+  return res.rows.map((r) => ({ usn: r.usn, name: r.name, uid: r.uid }));
 }
 
 module.exports = {

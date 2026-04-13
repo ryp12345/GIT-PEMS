@@ -1231,16 +1231,17 @@ function AllocationTab({ instanceId }) {
 				</div>
 				<div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 					<div className="overflow-x-auto">
-						<table className="min-w-full divide-y divide-gray-200 text-sm">
-							<thead className="bg-blue-600 text-white">
-								<tr>
-									<th className="px-5 py-3 text-left">S.No</th>
-									<th className="px-5 py-3 text-left">Group</th>
-									<th className="px-5 py-3 text-left">USN</th>
-									<th className="px-5 py-3 text-left">Student Name</th>
-								</tr>
-							</thead>
-							<tbody className="divide-y divide-gray-100 bg-white">
+								<table className="min-w-full divide-y divide-gray-200 text-sm">
+									<thead className="bg-blue-600 text-white">
+										<tr>
+											<th className="px-5 py-3 text-left">S.No</th>
+											<th className="px-5 py-3 text-left">Group</th>
+											<th className="px-5 py-3 text-left">UID</th>
+											<th className="px-5 py-3 text-left">USN</th>
+											<th className="px-5 py-3 text-left">Student Name</th>
+										</tr>
+									</thead>
+									<tbody className="divide-y divide-gray-100 bg-white">
 								{paginatedUnallocatedRows.length === 0 ? (
 									<tr><td colSpan="4" className="py-6 text-center text-sm text-gray-500">No allocated elective groups found yet.</td></tr>
 								) : (
@@ -1259,6 +1260,7 @@ function AllocationTab({ instanceId }) {
 											<tr key={`${row.electivegroup}-${row.usn}-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
 												<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.serialNumber}</td>
 												<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.electivegroup}</td>
+												<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.uid || '-'}</td>
 												<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.usn}</td>
 												<td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700">{row.name}</td>
 											</tr>
