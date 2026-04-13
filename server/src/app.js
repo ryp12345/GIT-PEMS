@@ -9,8 +9,10 @@ const hodElectiveRoutes = require('./routes/hod/elective.routes');
 const hodStatsRoutes = require('./routes/hod/stats.routes');
 const hodPreferencesRoutes = require('./routes/hod/preferences.routes');
 const hodStudentsRoutes = require('./routes/hod/students.routes');
+const studentRoutes = require('./routes/student/student.routes');
 
 app.use(express.json());
+app.use('/api/student', studentRoutes);
 const isProduction = process.env.NODE_ENV === 'production';
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
 	.split(',')

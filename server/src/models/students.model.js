@@ -1,3 +1,15 @@
+// Find student by USN and UID (case-insensitive, trimmed)
+async function findByUsnAndUid(usn, uid) {
+  const res = await pool.query(
+    `SELECT id, "Name", "USN", "UID", "DeptID", "CGPA", sem, instance_id
+     FROM public.students
+     WHERE LOWER(TRIM("USN")) = LOWER(TRIM($1))
+       AND LOWER(TRIM("UID")) = LOWER(TRIM($2))
+     LIMIT 1`,
+    [usn, uid]
+  );
+  return res.rows[0] || null;
+}
 const pool = require('../config/db');
 
 async function getStudentsByDept(deptid) {
@@ -85,4 +97,4 @@ async function remove(id, deptid, instanceId) {
   return true;
 }
 
-module.exports = { getStudentsByDept, getStudentsByInstance, getPendingStudentsByInstance, findByUsn, findByUsnAndInstance, findByUidAndInstance, create, update, remove };
+module.exports = { getStudentsByDept, getStudentsByInstance, getPendingStudentsByInstance, findByUsn, findByUsnAndInstance, findByUidAndInstance, findByUsnAndUid, create, update, remove };

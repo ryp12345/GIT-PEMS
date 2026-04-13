@@ -18,6 +18,97 @@ function DashboardPlaceholder({ title }) {
 	);
 }
 
+// Lightweight SVG Pie Chart for "Allocated Students by Course"
+function AllocatedPie({ data }) {
+	if (!Array.isArray(data) || data.length === 0) return null;
+	const total = data.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+	if (!total) return null;
+
+	const [hoverIndex, setHoverIndex] = useState(null);
+	const radius = 90;
+	const labelRadius = 54; // where to place the count labels inside slices
+	let cumulative = 0; // cumulative fraction
+	const colors = [
+		'#6366F1', // indigo
+		'#22C55E', // green
+		'#F97316', // orange
+		'#E11D48', // rose
+		'#0EA5E9', // sky
+		'#A855F7', // purple
+		'#14B8A6', // teal
+		'#FACC15', // amber
+		'#EF4444', // red
+		'#8B5CF6'  // violet
+	];
+
+	return (
+		<div className="flex flex-col items-center justify-center">
+			<svg width={260} height={260} viewBox="0 0 220 220">
+				<g transform="translate(110,110)">
+					{data.map((item, index) => {
+						const value = Number(item.value) || 0;
+						if (!value) return null;
+						const fraction = value / total;
+						const startAngle = cumulative * 2 * Math.PI - Math.PI / 2; // start from top
+						const endAngle = (cumulative + fraction) * 2 * Math.PI - Math.PI / 2;
+						const largeArc = fraction > 0.5 ? 1 : 0;
+						const x1 = radius * Math.cos(startAngle);
+						const y1 = radius * Math.sin(startAngle);
+						const x2 = radius * Math.cos(endAngle);
+						const y2 = radius * Math.sin(endAngle);
+						const midAngle = (startAngle + endAngle) / 2;
+						const lx = labelRadius * Math.cos(midAngle);
+						const ly = labelRadius * Math.sin(midAngle);
+						cumulative += fraction;
+
+						const d = `M 0 0 L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+						const isHovered = hoverIndex === index;
+
+						return (
+							<g
+								key={item.label || index}
+								onMouseEnter={() => setHoverIndex(index)}
+								onMouseLeave={() => setHoverIndex(null)}
+								style={{ cursor: 'pointer' }}
+							>
+								<path
+									d={d}
+									fill={colors[index % colors.length]}
+									opacity={hoverIndex == null || isHovered ? 1 : 0.35}
+								/>
+								<text
+									x={lx}
+									y={ly}
+									textAnchor="middle"
+									dominantBaseline="middle"
+									fill="#0f172a"
+									fontSize="10"
+									fontWeight={isHovered ? '700' : '600'}
+								>
+									{value}
+								</text>
+							</g>
+						);
+					})}
+				</g>
+			</svg>
+			<ul className="mt-3 grid grid-cols-1 gap-1 text-xs text-slate-700 sm:grid-cols-2">
+				{data.map((item, index) => (
+					<li key={item.label || index} className="flex items-center gap-2">
+						<span
+							className="inline-block h-3 w-3 rounded-sm"
+							style={{ backgroundColor: colors[index % colors.length] }}
+						/>
+						<span className="truncate" title={`${item.label}: ${item.value}`}>
+							{item.label} ({item.value})
+						</span>
+					</li>
+				))}
+			</ul>
+		</div>
+	);
+}
+
 export default function HODDashboard() {
 	const { user } = useAuth();
 	const location = useLocation();
@@ -141,7 +232,7 @@ export default function HODDashboard() {
 		   return (
 			   <div className="overflow-hidden rounded-xl bg-white shadow-xl">
 				   <div className="px-6 pt-6 pb-2">
-					   <h2 className="text-lg font-semibold text-slate-900 mb-4">Pending/Unassigned Students</h2>
+					   <h2 className="text-lg font-bold text-slate-900 mb-4 text-center">Pending/Unassigned Students</h2>
 					   <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
 						   <div className="relative w-full sm:w-80">
 							   <input
@@ -218,83 +309,173 @@ export default function HODDashboard() {
 		const [loading, setLoading] = useState(true);
 		const [error, setError] = useState('');
 		const [metrics, setMetrics] = useState({});
+		const [allocatedPieData, setAllocatedPieData] = useState([]);
 
-		useEffect(() => {
-			let mounted = true;
-			async function load() {
-				setLoading(true);
-				try {
-					const [studentsRes, statsRes] = await Promise.all([
-						getElectiveStudents(instanceId),
-						getElectivesStats(instanceId)
-					]);
-					if (!mounted) return;
+		   useEffect(() => {
+			   let mounted = true;
+			   async function load() {
+				   setLoading(true);
+				   try {
+					   const [studentsRes, statsRes] = await Promise.all([
+						   getElectiveStudents(instanceId),
+						   getElectivesStats(instanceId)
+					   ]);
+					   if (!mounted) return;
 
-					// total allocated = sum of students in groups -> courses -> students
-					const groups = (studentsRes.data && studentsRes.data.groups) || [];
-					let totalAllocated = 0;
-					for (const g of groups) {
-						for (const c of (g.courses || [])) {
-							totalAllocated += (c.students || []).length;
-						}
-					}
+					   // total allocated = sum of students in groups -> courses -> students
+					   const groups = (studentsRes.data && studentsRes.data.groups) || [];
+					   let totalAllocated = 0;
+					   const pieData = [];
+					   for (const g of groups) {
+						   for (const c of (g.courses || [])) {
+							   const count = (c.students || []).length;
+							   totalAllocated += count;
+							   if (count > 0) {
+								   pieData.push({ label: c.courseName || c.coursename || c.coursecode, value: count });
+							   }
+						   }
+					   }
 
-					const pendingCount = (studentsRes.data && studentsRes.data.pendingStudents && studentsRes.data.pendingStudents.length) || 0;
+					   const pendingCount = (studentsRes.data && studentsRes.data.pendingStudents && studentsRes.data.pendingStudents.length) || 0;
 
-					// compute capacity and oversubscription from electives stats
-					const statGroups = (statsRes.data && statsRes.data.groups) || [];
-					let totalSeats = 0;
-					let totalAllocatedSeats = 0;
-					const oversubscribed = [];
-					for (const g of statGroups) {
-						for (const c of (g.courses || [])) {
-							const max = Number(c.max || 0);
-							const totalAlloc = Number(c.total_allocations || 0);
-							totalSeats += max;
-							totalAllocatedSeats += totalAlloc;
-							const firstPrefs = Number(c.prefs && c.prefs[1] ? c.prefs[1] : 0);
-							if (max > 0 && firstPrefs > max) {
-								oversubscribed.push({ coursecode: c.coursecode, courseName: c.courseName || c.coursename || c.coursecode, demand: firstPrefs, max });
-							}
-						}
-					}
+					   // compute capacity, oversubscription, preference demand and remaining seats from electives stats
+					   const statGroups = (statsRes.data && statsRes.data.groups) || [];
+					   let totalSeats = 0;
+					   let totalAllocatedSeats = 0;
+					   const oversubscribed = [];
+					   const utilCourses = [];
+					   const prefTotals = {};
+					   const freeCourses = [];
+					   for (const g of statGroups) {
+						   for (const c of (g.courses || [])) {
+							   const max = Number(c.max || 0);
+							   const totalAlloc = Number(c.total_allocations || 0);
+							   totalSeats += max;
+							   totalAllocatedSeats += totalAlloc;
+							   const firstPrefs = Number(c.prefs && c.prefs[1] ? c.prefs[1] : 0);
+							   if (max > 0 && firstPrefs > max) {
+								   oversubscribed.push({ coursecode: c.coursecode, courseName: c.courseName || c.coursename || c.coursecode, demand: firstPrefs, max });
+							   }
+							   if (max > 0) {
+								   const courseUtil = max === 0 ? 0 : Math.round((totalAlloc / max) * 100);
+								   utilCourses.push({
+									   coursecode: c.coursecode,
+									   courseName: c.courseName || c.coursename || c.coursecode,
+									   max,
+									   allocated: totalAlloc,
+									   utilization: courseUtil
+								   });
+								   const freeSeats = Math.max(max - totalAlloc, 0);
+								   if (freeSeats > 0) {
+									   freeCourses.push({
+										   coursecode: c.coursecode,
+										   courseName: c.courseName || c.coursename || c.coursecode,
+										   max,
+										   freeSeats
+									   });
+								   }
+							   }
+							   if (c.prefs) {
+								   Object.entries(c.prefs).forEach(([rankStr, cnt]) => {
+									   const rank = Number(rankStr);
+									   const value = Number(cnt || 0);
+									   if (!Number.isFinite(rank) || !value) return;
+									   prefTotals[rank] = (prefTotals[rank] || 0) + value;
+								   });
+							   }
+						   }
+					   }
 
-					const utilization = totalSeats === 0 ? 0 : Math.round((totalAllocatedSeats / totalSeats) * 100);
+					   const utilization = totalSeats === 0 ? 0 : Math.round((totalAllocatedSeats / totalSeats) * 100);
+					   const topUtilized = utilCourses.sort((a, b) => b.utilization - a.utilization).slice(0, 3);
+					   const prefRanks = Object.keys(prefTotals).map(Number).sort((a, b) => a - b);
+					   const preferenceDemand = prefRanks.map(rank => ({ rank, count: prefTotals[rank] }));
+					   const topFreeCourses = freeCourses.sort((a, b) => b.freeSeats - a.freeSeats).slice(0, 3);
 
-					setMetrics({ totalAllocated, pendingCount, oversubscribedCount: oversubscribed.length, oversubscribedTop: oversubscribed.slice(0, 3), utilization });
-				} catch (err) {
-					if (!mounted) return;
-					setError(err?.response?.data?.error || err.message || 'Failed to load stats');
-				} finally {
-					if (mounted) setLoading(false);
-				}
-			}
-			if (instanceId) load();
-			return () => { mounted = false; };
-		}, [instanceId]);
+					   setMetrics({
+						   totalAllocated,
+						   pendingCount,
+						   oversubscribedCount: oversubscribed.length,
+						   oversubscribedTop: oversubscribed.slice(0, 3),
+						   utilization,
+						   topUtilizedCourses: topUtilized,
+						   preferenceDemand,
+						   topFreeCourses
+					   });
+					   setAllocatedPieData(pieData);
+				   } catch (err) {
+					   if (!mounted) return;
+					   setError(err?.response?.data?.error || err.message || 'Failed to load stats');
+				   } finally {
+					   if (mounted) setLoading(false);
+				   }
+			   }
+			   if (instanceId) load();
+			   return () => { mounted = false; };
+		   }, [instanceId]);
 
-		return (
-			<div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-					<div className="p-4 rounded-lg border border-indigo-100 bg-indigo-50">
-						<div className="text-sm text-indigo-600">Total Allocated</div>
-						<div className="mt-2 text-2xl font-semibold text-indigo-700">{loading ? '—' : metrics.totalAllocated ?? 0}</div>
-						<div className="text-xs text-indigo-600 mt-1">Students allocated to electives</div>
-					</div>
-					<div className="p-4 rounded-lg border border-amber-100 bg-amber-50">
-						<div className="text-sm text-amber-700">Pending / Unassigned</div>
-						<div className="mt-2 text-2xl font-semibold text-amber-800">{loading ? '—' : metrics.pendingCount ?? 0}</div>
-						<div className="text-xs text-amber-700 mt-1">Students without submitted or matched preferences</div>
-					</div>
-					<div className="p-4 rounded-lg border border-green-100 bg-green-50">
-						<div className="text-sm text-green-600">Capacity Utilization</div>
-						<div className="mt-2 text-2xl font-semibold text-green-700">{loading ? '—' : `${metrics.utilization ?? 0}%`}</div>
-						<div className="text-xs text-green-600 mt-1">Overall seats filled</div>
-					</div>
-				</div>
-				{error ? <div className="mt-4 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}
-			</div>
-		);
+		   return (
+			   <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+				   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					   <div className="p-4 rounded-lg border border-indigo-100 bg-indigo-50">
+						   <div className="text-sm text-indigo-600">Total Allocated</div>
+						   <div className="mt-2 text-2xl font-semibold text-indigo-700">{loading ? '—' : metrics.totalAllocated ?? 0}</div>
+						   <div className="text-xs text-indigo-600 mt-1">Students allocated to electives</div>
+					   </div>
+					   <div className="p-4 rounded-lg border border-amber-100 bg-amber-50">
+						   <div className="text-sm text-amber-700">Pending / Unassigned</div>
+						   <div className="mt-2 text-2xl font-semibold text-amber-800">{loading ? '—' : metrics.pendingCount ?? 0}</div>
+						   <div className="text-xs text-amber-700 mt-1">Students without submitted or matched preferences</div>
+					   </div>
+					   <div className="p-4 rounded-lg border border-green-100 bg-green-50">
+						   <div className="text-sm text-green-600">Capacity Utilization</div>
+						   <div className="mt-2 text-2xl font-semibold text-green-700">{loading ? '—' : `${metrics.utilization ?? 0}%`}</div>
+						   <div className="text-xs text-green-600 mt-1">Overall seats filled</div>
+					   </div>
+				   </div>
+				   <div className="mt-8 grid gap-6 lg:grid-cols-2">
+					   <div>
+						   <h3 className="text-base font-bold text-slate-800 mb-2 text-center">Allocated Students by Course</h3>
+						   {loading ? (
+							   <div className="text-center text-gray-500 py-8">Loading chart...</div>
+						   ) : allocatedPieData.length === 0 ? (
+							   <div className="text-center text-gray-500 py-8">No allocation data available</div>
+						   ) : (
+							   <AllocatedPie data={allocatedPieData} />
+						   )}
+					   </div>
+					   <div>
+						   <h3 className="text-base font-bold text-slate-800 mb-2 text-center">Courses with Most Free Seats</h3>
+						   {loading ? (
+							   <div className="text-center text-gray-500 py-8">Loading data...</div>
+						   ) : !metrics.topFreeCourses || metrics.topFreeCourses.length === 0 ? (
+							   <div className="text-center text-gray-500 py-8">No free seats available</div>
+						   ) : (
+							   <div className="space-y-4 py-2">
+								   {metrics.topFreeCourses.map((course, idx) => {
+									   const ratio = course.max ? (course.freeSeats / course.max) * 100 : 0;
+									   return (
+										   <div key={course.coursecode || course.courseName || idx} className="space-y-1">
+											   <div className="flex items-baseline justify-between gap-2 text-xs font-medium text-slate-700">
+												   <span className="truncate" title={course.courseName || course.coursecode}>{course.courseName || course.coursecode}</span>
+												   <span className="text-slate-500">{`${course.freeSeats} free / ${course.max} seats`}</span>
+											   </div>
+											   <div className="h-3 w-full rounded-full bg-slate-100 overflow-hidden">
+												   <div
+													   className="h-full rounded-full bg-sky-500"
+													   style={{ width: `${Math.min(ratio, 100)}%` }}
+												   />
+											   </div>
+										   </div>
+									   );
+								   })}
+							   </div>
+						   )}
+					   </div>
+				   </div>
+				   {error ? <div className="mt-4 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}
+			   </div>
+		   );
 	}
 	
 	// Removed QuickActionsCard and OverviewCard per request; dashboard shows only pending list for now.

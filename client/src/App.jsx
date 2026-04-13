@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AuthProvider from './context/AuthContext';
 import Login from './pages/auth/Login';
 import HODDashboard from './pages/HOD/Dashboard';
+import StudentLogin from './pages/Student/StudentLogin';
 
 const hodRoutes = [
 	'/dashboard',
@@ -16,6 +17,7 @@ export default function App(){
 			<BrowserRouter>
 				<Routes>
 					<Route path="/login" element={<Login/>} />
+                <Route path="/student-login" element={<StudentLogin />} />
 					{hodRoutes.map((path) => (
 						<Route key={path} path={path} element={<HODDashboard />} />
 					))}
