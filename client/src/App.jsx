@@ -17,7 +17,7 @@ export default function App(){
 			<BrowserRouter>
 				<Routes>
 					<Route path="/login" element={<Login/>} />
-                <Route path="/student-login" element={<StudentLogin />} />
+                <Route path="/StudentLogin" element={<StudentLogin />} />
 					{hodRoutes.map((path) => (
 						<Route key={path} path={path} element={<HODDashboard />} />
 					))}

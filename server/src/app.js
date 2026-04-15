@@ -12,7 +12,6 @@ const hodStudentsRoutes = require('./routes/hod/students.routes');
 const studentRoutes = require('./routes/student/student.routes');
 
 app.use(express.json());
-app.use('/api/student', studentRoutes);
 const isProduction = process.env.NODE_ENV === 'production';
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
 	.split(',')
@@ -33,6 +32,7 @@ function isPrivateDevOrigin(origin) {
 	}
 }
 
+// Apply CORS middleware before mounting routes so responses include CORS headers
 app.use(cors({
 	origin: function(origin, callback) {
 		if (!origin) {
@@ -64,6 +64,8 @@ app.use(cors({
 	},
 	credentials: true
 }));
+
+app.use('/api/student', studentRoutes);
 
 
 app.use('/api/auth', authRoutes);

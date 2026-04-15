@@ -43,7 +43,7 @@ async function getStudentsByInstance(instanceId, deptid) {
 
 async function findByUsn(usn) {
   const res = await pool.query(
-    `SELECT id, "Name", "USN", "UID", "DeptID", "CGPA", sem FROM public.students WHERE "USN" = $1 LIMIT 1`,
+    `SELECT id, "Name", "USN", "UID", "DeptID", "CGPA", sem, instance_id FROM public.students WHERE "USN" = $1 LIMIT 1`,
     [usn]
   );
   return res.rows[0] || null;
