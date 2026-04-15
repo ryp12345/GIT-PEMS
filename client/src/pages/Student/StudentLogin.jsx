@@ -14,9 +14,10 @@ export default function StudentLogin() {
   const [existingPreferences, setExistingPreferences] = useState([]);
   // Array of course codes in the order selected
   const [selectedOrder, setSelectedOrder] = useState([]);
-  const [success, setSuccess] = useState('');
   const [instanceId, setInstanceId] = useState(null);
   const nameRef = useRef(null);
+  // Notification state
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
 
   const handleUsnChange = (e) => {
     setUsn(e.target.value);
@@ -62,9 +63,8 @@ export default function StudentLogin() {
           setPreferencesHtml(html);
         }
       } catch (err) {
-        setError(
-          err.response?.data?.error || 'Unable to verify student details.'
-        );
+        setError(err.response?.data?.error || 'Unable to verify student details.');
+        showNotification(err.response?.data?.error || 'Unable to verify student details.', 'error');
       } finally {
         setIsSubmitting(false);
         if (nameRef.current) nameRef.current.disabled = false;
@@ -74,10 +74,29 @@ export default function StudentLogin() {
     }
   };
 
+  // Notification logic
+  function showNotification(message, type = 'success') {
+    setNotification({ show: true, message, type });
+    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3500);
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100">
-      <div className="w-full max-w-3xl bg-white rounded-xl shadow-lg p-12">
-        <h2 className="text-2xl font-bold mb-6 text-center">Student Elective Registration</h2>
+      {/* Notification */}
+      {notification.show ? (
+        <div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-lg px-5 py-3 text-sm font-medium text-white shadow-lg transition-all ${notification.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
+          <span>{notification.message}</span>
+          <button type="button" onClick={() => setNotification({ show: false, message: '', type: 'success' })} className="ml-2 text-white/80 hover:text-white">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      ) : null}
+
+      <div className="w-full max-w-2xl bg-white rounded-xl shadow-xl p-10">
+        <div className="mb-8 text-center">
+          <h2 className="text-3xl font-extrabold mb-2 text-gray-900">Student Elective Registration</h2>
+          <p className="text-base text-gray-600">Enter your details and register preferences for electives</p>
+        </div>
         <form className="space-y-4" onSubmit={e => e.preventDefault()}>
           <div>
             <label className="block mb-1 font-semibold">USN</label>
@@ -119,9 +138,6 @@ export default function StudentLogin() {
           </div>
           {error && (
             <div className="bg-red-100 text-red-700 p-2 rounded text-sm">{error}</div>
-          )}
-          {success && (
-            <div className="bg-green-100 text-green-700 p-2 rounded text-sm">{success}</div>
           )}
         </form>
         <div className="perferences mt-6">
@@ -181,10 +197,10 @@ export default function StudentLogin() {
                   onSubmit={async (e) => {
                     e.preventDefault();
                     setError('');
-                    setSuccess('');
                     // All courses must be selected
                     if (selectedOrder.length !== groupCourses.length) {
                       setError('You must select all courses and assign preferences.');
+                      showNotification('You must select all courses and assign preferences.', 'error');
                       return;
                     }
                     // Build preferences array in order
@@ -193,6 +209,7 @@ export default function StudentLogin() {
                       setIsSubmitting(true);
                       if (instanceId == null) {
                         setError('Unable to submit preferences: student instance not found. Please verify details again.');
+                        showNotification('Unable to submit preferences: student instance not found. Please verify details again.', 'error');
                         return;
                       }
                       await api.post('/student/preferences', { usn, electivegroup: selectedGroup, preferences: prefs, instance_id: instanceId });
@@ -203,9 +220,10 @@ export default function StudentLogin() {
                       setSelectedOrder([]);
                       setExistingPreferences([]);
                       setInstanceId(null);
-                      setSuccess('Preferences submitted successfully.');
+                      showNotification('Preferences submitted successfully.', 'success');
                     } catch (err) {
                       setError(err.response?.data?.error || 'Unable to submit preferences.');
+                      showNotification(err.response?.data?.error || 'Unable to submit preferences.', 'error');
                     } finally {
                       setIsSubmitting(false);
                     }
