@@ -37,9 +37,22 @@ function buildScopedWhereClause(deptid, instanceId, startingIndex = 1) {
   return { where, params };
 }
 
-async function getDistinctGroups(deptid, instanceId = null) {
-  // Return elective groups ordered by the smallest semester they appear in.
-  const { where, params } = buildScopedWhereClause(deptid, instanceId);
+// Updated: filter by semester as well
+async function getDistinctGroups(deptid, instanceId = null, semester = null) {
+  // Return elective groups for the given semester only, ordered by the smallest semester they appear in.
+  let params = [deptid];
+  let where = `WHERE "DeptID" = $1`;
+  let paramIndex = 2;
+  if (instanceId != null) {
+    params.push(instanceId);
+    where += ` AND instance_id = $${paramIndex}`;
+    paramIndex++;
+  }
+  if (semester != null) {
+    params.push(semester);
+    where += ` AND sem = $${paramIndex}`;
+    paramIndex++;
+  }
   const res = await pool.query(
     `SELECT electivegroup, MIN(sem) AS min_sem
      FROM public.elective_list
@@ -65,17 +78,23 @@ async function getDistinctGroupsWithAllocations(deptid, instanceId = null) {
   return res.rows.map((r) => r.electivegroup);
 }
 
-async function getCoursesByGroup(deptid, group, instanceId = null) {
+async function getCoursesByGroup(deptid, group, instanceId = null, semester = null) {
   const params = [group, deptid];
-  let instanceFilter = '';
+  let whereClause = 'WHERE electivegroup = $1 AND "DeptID" = $2';
+  let paramIndex = 3;
   if (instanceId != null) {
     params.push(instanceId);
-    instanceFilter = ' AND instance_id = $3';
+    whereClause += ` AND instance_id = $${paramIndex}`;
+    paramIndex++;
+  }
+  if (semester != null) {
+    params.push(semester);
+    whereClause += ` AND sem = $${paramIndex}`;
   }
   const res = await pool.query(
     `SELECT coursecode, "courseName" AS coursename, allocation_status, cgpa_cutoff, min, max, total_allocations
      FROM public.elective_list
-     WHERE electivegroup = $1 AND "DeptID" = $2${instanceFilter}
+     ${whereClause}
      ORDER BY coursecode`,
     params
   );

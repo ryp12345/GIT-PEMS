@@ -23,21 +23,31 @@ exports.checkName = async (req, res) => {
 
     const deptid = student.DeptID;
     const instanceId = student.instance_id || null;
+    const semester = student.sem || null;
 
-    const groups = await electivesModel.getDistinctGroups(deptid, instanceId);
+    // Pass semester to filter groups as in PHP
+    const groups = await electivesModel.getDistinctGroups(deptid, instanceId, semester);
     const groupsWithCourses = [];
     for (const g of groups) {
-      const courses = await electivesModel.getCoursesByGroup(deptid, g, instanceId);
-      // Check if student already has preferences for this group
-      const prefRes = await pool.query(
-        `SELECT ep.coursecode, ep.preference, el."courseName" AS courseName
+      const courses = await electivesModel.getCoursesByGroup(deptid, g, instanceId, semester);
+      const existingPreferencesResult = await pool.query(
+        `SELECT ep.coursecode, ep.preference, el."courseName" AS course_name
          FROM public.elective_preferences ep
-         LEFT JOIN public.elective_list el ON el.coursecode = ep.coursecode
-         WHERE ep."USN" = $1 AND ep.electivegroup = $2 AND ep.instance_id = $3
+         LEFT JOIN public.elective_list el
+           ON el.coursecode = ep.coursecode
+          AND el."DeptID" = $3
+          AND ($4::int IS NULL OR el.instance_id = $4)
+         WHERE ep."USN" = $1
+           AND ep.electivegroup = $2
+           AND ($4::int IS NULL OR ep.instance_id = $4)
          ORDER BY ep.preference`,
-        [student.USN, g, instanceId]
+        [student.USN, g, deptid, instanceId]
       );
-      const existingPreferences = prefRes.rows.map((r) => ({ coursecode: r.coursecode, courseName: r.coursename, preference: Number(r.preference) }));
+      const existingPreferences = existingPreferencesResult.rows.map((row) => ({
+        coursecode: row.coursecode,
+        courseName: row.course_name,
+        preference: Number(row.preference)
+      }));
       groupsWithCourses.push({ group: g, courses, existingPreferences });
     }
 
@@ -51,7 +61,7 @@ exports.checkName = async (req, res) => {
 // Accept student preference submissions and insert into elective_preferences
 exports.submitPreferences = async (req, res) => {
   try {
-    const { usn, electivegroup, preferences, instance_id } = req.body; // preferences: [{ coursecode, preference }]
+    const { usn, electivegroup, preferences } = req.body; // preferences: [{ coursecode, preference }]
     if (!usn || !electivegroup || !Array.isArray(preferences) || preferences.length === 0) {
       return res.status(400).json({ error: 'Invalid submission.' });
     }
@@ -59,15 +69,7 @@ exports.submitPreferences = async (req, res) => {
     // Fetch student to get instance_id
     const student = await studentsModel.findByUsn(usn.trim());
     if (!student) return res.status(404).json({ error: 'Student not found.' });
-    const bodyInstanceId = instance_id == null ? null : Number(instance_id);
-    const studentInstanceId = student.instance_id == null ? null : Number(student.instance_id);
-    const instanceId = bodyInstanceId ?? studentInstanceId;
-    if (instanceId == null || Number.isNaN(instanceId)) {
-      return res.status(400).json({ error: 'Missing instance id for student.' });
-    }
-    if (bodyInstanceId != null && studentInstanceId != null && bodyInstanceId !== studentInstanceId) {
-      return res.status(400).json({ error: 'Submitted instance id does not match student record.' });
-    }
+    const instanceId = student.instance_id || null;
 
     const client = await pool.connect();
     try {
@@ -92,6 +94,6 @@ exports.submitPreferences = async (req, res) => {
     }
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'Server error.' });
+    return res.status(500).json({ error: 'Server error', details: err.message, stack: err.stack });
   }
 };
