@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import api from '../../api/axios';
 
+
 export default function StudentLogin() {
   const [usn, setUsn] = useState('');
   const [uid, setUid] = useState('');
@@ -12,11 +13,9 @@ export default function StudentLogin() {
   const [selectedGroup, setSelectedGroup] = useState('');
   const [groupCourses, setGroupCourses] = useState([]);
   const [existingPreferences, setExistingPreferences] = useState([]);
-  // Array of course codes in the order selected
   const [selectedOrder, setSelectedOrder] = useState([]);
   const [instanceId, setInstanceId] = useState(null);
   const nameRef = useRef(null);
-  // Notification state
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
 
   const handleUsnChange = (e) => {
@@ -81,7 +80,7 @@ export default function StudentLogin() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100">
+    <div className="min-h-screen bg-slate-100 py-10">
       {/* Notification */}
       {notification.show ? (
         <div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-lg px-5 py-3 text-sm font-medium text-white shadow-lg transition-all ${notification.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
@@ -92,65 +91,67 @@ export default function StudentLogin() {
         </div>
       ) : null}
 
-      <div className="w-full max-w-2xl bg-white rounded-xl shadow-xl p-10">
-        <div className="mb-8 text-center">
-          <h2 className="text-3xl font-extrabold mb-2 text-gray-900">Student Elective Registration</h2>
-          <p className="text-base text-gray-600">Enter your details and register preferences for electives</p>
+      <div className="mx-auto w-full max-w-3xl rounded-xl bg-white shadow-xl overflow-hidden">
+        <div className="bg-blue-600 px-8 py-6 text-center">
+          <h1 className="mb-2 text-3xl font-extrabold text-white">Student Elective Registration</h1>
+          <p className="text-base text-blue-100">Enter your details and register preferences for electives</p>
         </div>
-        <form className="space-y-4" onSubmit={e => e.preventDefault()}>
-          <div>
-            <label className="block mb-1 font-semibold">USN</label>
-            <input
-              type="text"
-              className="w-full border rounded px-3 py-2"
-              value={usn}
-              onChange={handleUsnChange}
-              placeholder="Enter USN"
-              disabled={isSubmitting}
-              required
-            />
-          </div>
-          <div>
-            <label className="block mb-1 font-semibold">UID</label>
-            <input
-              type="text"
-              className="w-full border rounded px-3 py-2"
-              value={uid}
-              onChange={handleUidChange}
-              placeholder="Enter UID"
-              disabled={isSubmitting}
-              required
-            />
-          </div>
-          <div>
-            <label className="block mb-1 font-semibold">First 4 characters of Name</label>
-            <input
-              type="text"
-              className="w-full border rounded px-3 py-2"
-              value={name}
-              onChange={handleNameChange}
-              placeholder="Enter first 4 characters of your name"
-              disabled={isSubmitting}
-              ref={nameRef}
-              required
-              maxLength={4}
-            />
-          </div>
-          {error && (
-            <div className="bg-red-100 text-red-700 p-2 rounded text-sm">{error}</div>
-          )}
-        </form>
-        <div className="perferences mt-6">
-          {preferencesHtml ? (
-            <div dangerouslySetInnerHTML={{ __html: preferencesHtml }} />
-          ) : groups.length > 0 ? (
+        <div className="px-8 py-8">
+          <form className="grid grid-cols-1 gap-6 md:grid-cols-2" onSubmit={e => e.preventDefault()}>
             <div>
-              <div className="mb-3">
-                <label className="block mb-1 font-semibold text-primary">Select Elective Group</label>
-                <select
-                  className="w-full border rounded px-3 py-2"
-                  value={selectedGroup}
-                  onChange={(e) => {
+              <label className="mb-2 block text-sm font-medium text-gray-700">USN</label>
+              <input
+                type="text"
+                className="block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={usn}
+                onChange={handleUsnChange}
+                placeholder="Enter USN"
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">UID</label>
+              <input
+                type="text"
+                className="block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={uid}
+                onChange={handleUidChange}
+                placeholder="Enter UID"
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-medium text-gray-700">First 4 characters of Name</label>
+              <input
+                type="text"
+                className="block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={name}
+                onChange={handleNameChange}
+                placeholder="Enter first 4 characters of your name"
+                disabled={isSubmitting}
+                ref={nameRef}
+                required
+                maxLength={4}
+              />
+            </div>
+            {error && (
+              <div className="md:col-span-2 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+            )}
+          </form>
+
+          <div className="mt-8">
+            {preferencesHtml ? (
+              <div dangerouslySetInnerHTML={{ __html: preferencesHtml }} />
+            ) : groups.length > 0 ? (
+              <div>
+                <div className="mb-5">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Select Elective Group</label>
+                  <select
+                    className="block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={selectedGroup}
+                    onChange={(e) => {
                       const g = e.target.value;
                       setSelectedGroup(g);
                       const grp = groups.find((x) => x.group === g) || null;
@@ -158,113 +159,113 @@ export default function StudentLogin() {
                       setExistingPreferences(grp ? grp.existingPreferences || [] : []);
                       setSelectedOrder([]);
                       setError('');
-                      setSuccess('');
                     }}
-                >
-                  <option value="">-- Select --</option>
-                  {groups.map((g) => (
-                    <option key={g.group} value={g.group}>{g.group}</option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedGroup && existingPreferences && existingPreferences.length > 0 ? (
-                <div>
-                  <div className="alert alert-danger text-center mb-3" role="alert"><h4><b>You have already Registered your preferences for this elective group</b></h4></div>
-                  <table className="table table-bordered table-striped table-info w-full">
-                    <thead>
-                      <tr>
-                        <th className='text-center'>Sl.No.</th>
-                        <th className='text-center'>Course Code</th>
-                        <th className='text-center'>Course Name</th>
-                        <th className='text-center'>Preference</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {existingPreferences.map((r, idx) => (
-                        <tr key={r.coursecode}>
-                          <td className='text-center'>{idx + 1}</td>
-                          <td className='text-center'>{r.coursecode}</td>
-                          <td>{r.courseName}</td>
-                          <td className='text-center'>{r.preference}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  >
+                    <option value="">-- Select --</option>
+                    {groups.map((g) => (
+                      <option key={g.group} value={g.group}>{g.group}</option>
+                    ))}
+                  </select>
                 </div>
-              ) : groupCourses.length > 0 && (
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    setError('');
-                    // All courses must be selected
-                    if (selectedOrder.length !== groupCourses.length) {
-                      setError('You must select all courses and assign preferences.');
-                      showNotification('You must select all courses and assign preferences.', 'error');
-                      return;
-                    }
-                    // Build preferences array in order
-                    const prefs = selectedOrder.map((coursecode, idx) => ({ coursecode, preference: idx + 1 }));
-                    try {
-                      setIsSubmitting(true);
-                      if (instanceId == null) {
-                        setError('Unable to submit preferences: student instance not found. Please verify details again.');
-                        showNotification('Unable to submit preferences: student instance not found. Please verify details again.', 'error');
+
+                {selectedGroup && existingPreferences && existingPreferences.length > 0 ? (
+                  <div>
+                    <div className="mb-4 rounded border border-yellow-200 bg-yellow-50 p-3 text-center text-yellow-800"><b>You have already registered your preferences for this elective group</b></div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-blue-600">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Sl.No.</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Course Code</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Course Name</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-white">Preference</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {existingPreferences.map((r, idx) => (
+                            <tr key={r.coursecode}>
+                              <td className="px-6 py-3 text-center">{idx + 1}</td>
+                              <td className="px-6 py-3 text-center">{r.coursecode}</td>
+                              <td className="px-6 py-3">{r.courseName}</td>
+                              <td className="px-6 py-3 text-center">{r.preference}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : groupCourses.length > 0 && (
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setError('');
+                      if (selectedOrder.length !== groupCourses.length) {
+                        setError('You must select all courses and assign preferences.');
+                        showNotification('You must select all courses and assign preferences.', 'error');
                         return;
                       }
-                      await api.post('/student/preferences', { usn, electivegroup: selectedGroup, preferences: prefs, instance_id: instanceId });
-                      setPreferencesHtml('');
-                      setGroups([]);
-                      setGroupCourses([]);
-                      setSelectedGroup('');
-                      setSelectedOrder([]);
-                      setExistingPreferences([]);
-                      setInstanceId(null);
-                      showNotification('Preferences submitted successfully.', 'success');
-                    } catch (err) {
-                      setError(err.response?.data?.error || 'Unable to submit preferences.');
-                      showNotification(err.response?.data?.error || 'Unable to submit preferences.', 'error');
-                    } finally {
-                      setIsSubmitting(false);
-                    }
-                  }}
-                >
-                  <div className="mb-2 font-semibold">Courses</div>
-                  {groupCourses.map((c) => {
-                    const checked = selectedOrder.includes(c.coursecode);
-                    const prefNum = checked ? selectedOrder.indexOf(c.coursecode) + 1 : '';
-                    return (
-                      <div key={c.coursecode} className="flex items-center gap-3 mb-2">
-                        <input
-                          type="checkbox"
-                          id={`chk_${c.coursecode}`}
-                          checked={checked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedOrder((prev) => [...prev, c.coursecode]);
-                            } else {
-                              setSelectedOrder((prev) => prev.filter(code => code !== c.coursecode));
-                            }
-                          }}
-                        />
-                        <label htmlFor={`chk_${c.coursecode}`} className="flex-1">{c.coursecode} - {c.courseName}</label>
-                        <input
-                          type="text"
-                          className="w-16 border rounded px-2 py-1 text-center bg-gray-100"
-                          value={prefNum}
-                          readOnly
-                          placeholder=""
-                        />
-                      </div>
-                    );
-                  })}
-                  <div className="mt-4">
-                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded" disabled={isSubmitting}>Submit Preferences</button>
-                  </div>
-                </form>
-              )}
-            </div>
-          ) : null}
+                      const prefs = selectedOrder.map((coursecode, idx) => ({ coursecode, preference: idx + 1 }));
+                      try {
+                        setIsSubmitting(true);
+                        if (instanceId == null) {
+                          setError('Unable to submit preferences: student instance not found. Please verify details again.');
+                          showNotification('Unable to submit preferences: student instance not found. Please verify details again.', 'error');
+                          return;
+                        }
+                        await api.post('/student/preferences', { usn, electivegroup: selectedGroup, preferences: prefs, instance_id: instanceId });
+                        setPreferencesHtml('');
+                        setGroups([]);
+                        setGroupCourses([]);
+                        setSelectedGroup('');
+                        setSelectedOrder([]);
+                        setExistingPreferences([]);
+                        setInstanceId(null);
+                        showNotification('Preferences submitted successfully.', 'success');
+                      } catch (err) {
+                        setError(err.response?.data?.error || 'Unable to submit preferences.');
+                        showNotification(err.response?.data?.error || 'Unable to submit preferences.', 'error');
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                  >
+                    <div className="mb-2 font-semibold">Courses</div>
+                    {groupCourses.map((c) => {
+                      const checked = selectedOrder.includes(c.coursecode);
+                      const prefNum = checked ? selectedOrder.indexOf(c.coursecode) + 1 : '';
+                      return (
+                        <div key={c.coursecode} className="flex items-center gap-3 mb-2">
+                          <input
+                            type="checkbox"
+                            id={`chk_${c.coursecode}`}
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedOrder((prev) => [...prev, c.coursecode]);
+                              } else {
+                                setSelectedOrder((prev) => prev.filter(code => code !== c.coursecode));
+                              }
+                            }}
+                          />
+                          <label htmlFor={`chk_${c.coursecode}`} className="flex-1">{c.coursecode} - {c.courseName}</label>
+                          <input
+                            type="text"
+                            className="w-16 border rounded px-2 py-1 text-center bg-gray-100"
+                            value={prefNum}
+                            readOnly
+                            placeholder=""
+                          />
+                        </div>
+                      );
+                    })}
+                    <div className="mt-4">
+                      <button type="submit" className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50" disabled={isSubmitting}>Submit Preferences</button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
