@@ -8,3 +8,10 @@ exports.compare = async (plain, hashed) => {
 		return false;
 	}
 };
+
+
+// // TEMPORARY TEST to get the password 
+// (async () => {
+// 	const hash = await bcrypt.hash('Password@123', 10);
+// 	console.log(hash);
+// })();

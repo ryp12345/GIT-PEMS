@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const envBaseUrl = import.meta.env.VITE_API_BASE_URL;
-const defaultBaseUrl = `${window.location.protocol}//${window.location.hostname}:3001/api`;
+const defaultBaseUrl = `${window.location.protocol}//${window.location.hostname}:3006/api`;
 
 const api = axios.create({
 	baseURL: envBaseUrl || defaultBaseUrl

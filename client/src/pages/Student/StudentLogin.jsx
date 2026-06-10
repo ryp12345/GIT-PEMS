@@ -7,7 +7,8 @@ export default function StudentLogin() {
   const [uid, setUid] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Used for name check / disabling inputs
+  const [isSubmittingPrefs, setIsSubmittingPrefs] = useState(false); // Used ONLY for submit preferences overlay
   const [preferencesHtml, setPreferencesHtml] = useState('');
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState('');
@@ -34,24 +35,21 @@ export default function StudentLogin() {
     const value = e.target.value;
     setName(value);
     setPreferencesHtml('');
-    // Only fire the check when the user has entered 4 characters
     if (value.length === 4) {
       if (nameRef.current) nameRef.current.disabled = true;
       try {
         setIsSubmitting(true);
-        setError(''); // Clear error only before API call
+        setError('');
         const res = await api.post('/student/checkname', {
           usn1: usn,
           name1: value,
           uid: uid
         });
-        // If server returned structured JSON, use it; otherwise treat as HTML
         if (res.data && res.data.groups) {
           setGroups(res.data.groups || []);
           setSelectedGroup('');
           setGroupCourses([]);
           setPreferencesHtml('');
-          // Store instanceId if present
           if (Object.prototype.hasOwnProperty.call(res.data?.student || {}, 'instanceId')) {
             setInstanceId(res.data.student.instanceId);
           } else {
@@ -69,27 +67,70 @@ export default function StudentLogin() {
         if (nameRef.current) nameRef.current.disabled = false;
       }
     } else {
-      setError(''); // Clear error if user is still typing
+      setError('');
     }
   };
 
-  // Notification logic
   function showNotification(message, type = 'success') {
     setNotification({ show: true, message, type });
     setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3500);
   }
 
+  const handleSubmitPreferences = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (selectedOrder.length !== groupCourses.length) {
+      setError('You must select all courses and assign preferences.');
+      showNotification('You must select all courses and assign preferences.', 'error');
+      return;
+    }
+    const prefs = selectedOrder.map((coursecode, idx) => ({ coursecode, preference: idx + 1 }));
+    try {
+      setIsSubmittingPrefs(true); // Only show the overlay for preference submission
+      if (instanceId == null) {
+        setError('Unable to submit preferences: student instance not found. Please verify details again.');
+        showNotification('Unable to submit preferences: student instance not found. Please verify details again.', 'error');
+        setIsSubmittingPrefs(false);
+        return;
+      }
+      await api.post('/student/preferences', { usn, electivegroup: selectedGroup, preferences: prefs, instance_id: instanceId });
+      // On success, show notification then refresh the page
+      showNotification('Preferences submitted successfully. Refreshing...', 'success');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Unable to submit preferences.');
+      showNotification(err.response?.data?.error || 'Unable to submit preferences.', 'error');
+      setIsSubmittingPrefs(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 py-10">
       {/* Notification */}
-      {notification.show ? (
+      {notification.show && (
         <div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-lg px-5 py-3 text-sm font-medium text-white shadow-lg transition-all ${notification.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
           <span>{notification.message}</span>
           <button type="button" onClick={() => setNotification({ show: false, message: '', type: 'success' })} className="ml-2 text-white/80 hover:text-white">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
-      ) : null}
+      )}
+
+      {/* Submitting Overlay - Only shows when submitting preferences */}
+      {isSubmittingPrefs && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50">
+          <div className="flex flex-col items-center gap-4 rounded-xl bg-white px-10 py-8 shadow-2xl">
+            <svg className="h-12 w-12 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p className="text-lg font-semibold text-gray-700">Submitting preferences...</p>
+            <p className="text-sm text-gray-500">Please wait, do not close this page.</p>
+          </div>
+        </div>
+      )}
 
       <div className="mx-auto w-full max-w-3xl rounded-xl bg-white shadow-xl overflow-hidden">
         <div className="bg-blue-600 px-8 py-6 text-center">
@@ -106,7 +147,7 @@ export default function StudentLogin() {
                 value={usn}
                 onChange={handleUsnChange}
                 placeholder="Enter USN"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isSubmittingPrefs}
                 required
               />
             </div>
@@ -118,7 +159,7 @@ export default function StudentLogin() {
                 value={uid}
                 onChange={handleUidChange}
                 placeholder="Enter UID"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isSubmittingPrefs}
                 required
               />
             </div>
@@ -130,7 +171,7 @@ export default function StudentLogin() {
                 value={name}
                 onChange={handleNameChange}
                 placeholder="Enter first 4 characters of your name"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isSubmittingPrefs}
                 ref={nameRef}
                 required
                 maxLength={4}
@@ -195,40 +236,7 @@ export default function StudentLogin() {
                     </div>
                   </div>
                 ) : groupCourses.length > 0 && (
-                  <form
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      setError('');
-                      if (selectedOrder.length !== groupCourses.length) {
-                        setError('You must select all courses and assign preferences.');
-                        showNotification('You must select all courses and assign preferences.', 'error');
-                        return;
-                      }
-                      const prefs = selectedOrder.map((coursecode, idx) => ({ coursecode, preference: idx + 1 }));
-                      try {
-                        setIsSubmitting(true);
-                        if (instanceId == null) {
-                          setError('Unable to submit preferences: student instance not found. Please verify details again.');
-                          showNotification('Unable to submit preferences: student instance not found. Please verify details again.', 'error');
-                          return;
-                        }
-                        await api.post('/student/preferences', { usn, electivegroup: selectedGroup, preferences: prefs, instance_id: instanceId });
-                        setPreferencesHtml('');
-                        setGroups([]);
-                        setGroupCourses([]);
-                        setSelectedGroup('');
-                        setSelectedOrder([]);
-                        setExistingPreferences([]);
-                        setInstanceId(null);
-                        showNotification('Preferences submitted successfully.', 'success');
-                      } catch (err) {
-                        setError(err.response?.data?.error || 'Unable to submit preferences.');
-                        showNotification(err.response?.data?.error || 'Unable to submit preferences.', 'error');
-                      } finally {
-                        setIsSubmitting(false);
-                      }
-                    }}
-                  >
+                  <form onSubmit={handleSubmitPreferences}>
                     <div className="mb-2 font-semibold">Courses</div>
                     {groupCourses.map((c) => {
                       const checked = selectedOrder.includes(c.coursecode);
@@ -259,7 +267,9 @@ export default function StudentLogin() {
                       );
                     })}
                     <div className="mt-4">
-                      <button type="submit" className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50" disabled={isSubmitting}>Submit Preferences</button>
+                      <button type="submit" className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50" disabled={isSubmittingPrefs}>
+                        Submit Preferences
+                      </button>
                     </div>
                   </form>
                 )}
