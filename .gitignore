@@ -1,3 +1,9 @@
 node_modules/
 .env
 dist/
+
+
+server/src/config/db.js
+server/src/server.js
+server/src/config/index.js
+client/vite.config.js
