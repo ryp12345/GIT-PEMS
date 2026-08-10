@@ -703,6 +703,7 @@ function ElectivesTab({ instanceId }) {
                                 <option value="Elective-VI">Elective-VI</option>
                                 <option value="Elective-VII">Elective-VII</option>
                                 <option value="Elective-VIII">Elective-VIII</option>
+                                <option value="General-Elective">General-Elective</option>
                             </select>
                         </Field>
 
