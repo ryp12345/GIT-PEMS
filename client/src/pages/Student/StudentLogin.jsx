@@ -17,36 +17,15 @@ export default function StudentLogin() {
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const [showConfirm, setShowConfirm] = useState(false);
 
-  useEffect(() => {
-    try {
-      const draft = localStorage.getItem('electivePrefDraft');
-      if (draft) {
-        const parsed = JSON.parse(draft);
-        if (parsed && Object.keys(parsed).length > 0) {
-          setSelectedOrders(parsed);
-        }
-      }
-    } catch (e) { /* ignore */ }
-  }, []);
-
-  useEffect(() => {
-    if (groups.length > 0 && Object.keys(selectedOrders).length > 0) {
-      localStorage.setItem('electivePrefDraft', JSON.stringify(selectedOrders));
-    }
-  }, [selectedOrders, groups]);
+  const getGroupKey = (group) => String(group?.group ?? group?.electivegroup ?? '').trim();
 
   useEffect(() => {
     if (groups.length > 0) {
-      let draft = null;
-      try {
-        const raw = localStorage.getItem('electivePrefDraft');
-        draft = raw ? JSON.parse(raw) : null;
-      } catch (e) { /* ignore */ }
-
       const initial = {};
       groups.forEach(g => {
+        const groupKey = getGroupKey(g);
         const existing = (g.existingPreferences || []).map(p => p.coursecode);
-        initial[g.group] = existing.length > 0 ? existing : (draft?.[g.group] || []);
+        initial[groupKey] = existing.length > 0 ? existing : [];
       });
       setSelectedOrders(initial);
     }
@@ -63,6 +42,7 @@ export default function StudentLogin() {
     setInstanceId(null);
     setGroups([]);
     setSelectedOrders({});
+    clearDraft();
   };
   const handleUidChange = (e) => {
     setUid(e.target.value);
@@ -71,6 +51,7 @@ export default function StudentLogin() {
     setInstanceId(null);
     setGroups([]);
     setSelectedOrders({});
+    clearDraft();
   };
   const handleNameChange = async (e) => {
     const value = e.target.value;
@@ -90,6 +71,7 @@ export default function StudentLogin() {
           setGroups(res.data.groups || []);
           setSelectedOrders({});
           setPreferencesHtml('');
+          clearDraft();
           if (Object.prototype.hasOwnProperty.call(res.data?.student || {}, 'instanceId')) {
             setInstanceId(res.data.student.instanceId);
           } else {
@@ -117,12 +99,13 @@ export default function StudentLogin() {
   }
 
   const toggleCourse = (groupName, coursecode) => {
+    const groupKey = String(groupName).trim();
     setSelectedOrders(prev => {
-      const current = prev[groupName] || [];
+      const current = prev[groupKey] || [];
       if (current.includes(coursecode)) {
-        return { ...prev, [groupName]: current.filter(c => c !== coursecode) };
+        return { ...prev, [groupKey]: current.filter(c => c !== coursecode) };
       } else {
-        return { ...prev, [groupName]: [...current, coursecode] };
+        return { ...prev, [groupKey]: [...current, coursecode] };
       }
     });
   };
@@ -136,7 +119,7 @@ export default function StudentLogin() {
     setShowConfirm(false);
 
     const incompleteGroups = groups.filter(g => {
-      const order = selectedOrders[g.group] || [];
+      const order = selectedOrders[getGroupKey(g)] || [];
       return order.length === 0 && g.courses.length > 0;
     });
 
@@ -154,7 +137,8 @@ export default function StudentLogin() {
       }
 
       for (const group of groups) {
-        const order = selectedOrders[group.group] || [];
+        const groupKey = getGroupKey(group);
+        const order = selectedOrders[groupKey] || [];
         if (order.length === 0) continue;
 
         const prefs = order.map((coursecode, idx) => ({ coursecode, preference: idx + 1 }));
@@ -288,13 +272,14 @@ export default function StudentLogin() {
 
                 <div className="space-y-6">
                   {groups.map((group) => {
+                    const groupKey = getGroupKey(group);
                     const existingPrefs = group.existingPreferences || [];
                     const hasExisting = existingPrefs.length > 0;
                     const courses = group.courses || [];
-                    const currentOrder = selectedOrders[group.group] || [];
+                    const currentOrder = selectedOrders[groupKey] || [];
 
                     return (
-                      <div key={group.group} className={`rounded-lg border overflow-hidden ${hasExisting ? 'border-yellow-200 bg-yellow-50/30' : 'border-gray-200'}`}>
+                      <div key={groupKey} className={`rounded-lg border overflow-hidden ${hasExisting ? 'border-yellow-200 bg-yellow-50/30' : 'border-gray-200'}`}>
                         <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                           <h3 className="font-semibold text-gray-800">{group.group}</h3>
                           {hasExisting && (
@@ -340,12 +325,12 @@ export default function StudentLogin() {
                                   <div key={c.coursecode} className="flex items-center gap-3 mb-3 last:mb-0">
                                     <input
                                       type="checkbox"
-                                      id={`chk_${group.group}_${c.coursecode}`}
+                                      id={`chk_${groupKey}_${c.coursecode}`}
                                       checked={checked}
-                                      onChange={() => toggleCourse(group.group, c.coursecode)}
+                                      onChange={() => toggleCourse(groupKey, c.coursecode)}
                                       className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     />
-                                    <label htmlFor={`chk_${group.group}_${c.coursecode}`} className="flex-1 text-sm text-gray-700 cursor-pointer">
+                                    <label htmlFor={`chk_${groupKey}_${c.coursecode}`} className="flex-1 text-sm text-gray-700 cursor-pointer">
                                       {c.coursecode} - {c.courseName}
                                     </label>
                                     <input
