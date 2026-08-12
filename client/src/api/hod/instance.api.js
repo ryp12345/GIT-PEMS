@@ -8,4 +8,6 @@ export const updateAcademicYearInstance = (id, payload) => api.put(`/hod/instanc
 
 export const activateAcademicYearInstance = (id) => api.patch(`/hod/instances/${id}/activate`);
 
+export const deactivateAcademicYearInstance = (id) => api.patch(`/hod/instances/${id}/deactivate`);
+
 export const deleteAcademicYearInstance = (id) => api.delete(`/hod/instances/${id}`);

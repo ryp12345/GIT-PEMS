@@ -53,6 +53,18 @@ exports.activate = async (req, res) => {
 	}
 };
 
+exports.deactivate = async (req, res) => {
+	try {
+		const updated = await instanceService.deactivate({
+			id: Number(req.params.id),
+			deptid: req.user.deptid
+		});
+		return res.json(updated);
+	} catch (error) {
+		return res.status(400).json({ error: error.message || 'Unable to deactivate instance' });
+	}
+};
+
 exports.remove = async (req, res) => {
 	try {
 		const deleted = await instanceService.remove({

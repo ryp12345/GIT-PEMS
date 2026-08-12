@@ -9,6 +9,7 @@ router.get('/', instanceController.list);
 router.post('/', instanceController.create);
 router.put('/:id', instanceController.update);
 router.patch('/:id/activate', instanceController.activate);
+router.patch('/:id/deactivate', instanceController.deactivate);
 router.delete('/:id', instanceController.remove);
 
 module.exports = router;

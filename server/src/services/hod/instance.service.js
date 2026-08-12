@@ -2,6 +2,14 @@ const instanceModel = require('../../models/hod/instance.model');
 
 const ACADEMIC_YEAR_PATTERN = /^\d{4}-\d{4}$/;
 
+function getFriendlyDbError(error) {
+	if (!error) return null;
+	if (error.code === '23505' && String(error.constraint || '').includes('hod_academic_year_instances_deptid_academic_year_key')) {
+		return new Error('An instance for this academic year already exists in this department');
+	}
+	return null;
+}
+
 function validateAcademicYear(value) {
 	if (!ACADEMIC_YEAR_PATTERN.test(value || '')) {
 		throw new Error('Academic year format must be YYYY-YYYY');
@@ -53,14 +61,19 @@ async function create({ deptid, academicYear, title, startDate, endDate, isActiv
 	validateDates(startDate, endDate);
 
 	await instanceModel.ensureTable();
-	const created = await instanceModel.createInstance({
-		deptid,
-		academicYear,
-		title: String(title).trim(),
-		startDate: normalizeDateOnly(startDate),
-		endDate: normalizeDateOnly(endDate),
-		isActive
-	});
+	let created;
+	try {
+		created = await instanceModel.createInstance({
+			deptid,
+			academicYear,
+			title: String(title).trim(),
+			startDate: normalizeDateOnly(startDate),
+			endDate: normalizeDateOnly(endDate),
+			isActive
+		});
+	} catch (error) {
+		throw getFriendlyDbError(error) || error;
+	}
 
 	if (created.isActive) {
 		return instanceModel.setActive({ id: created.id, deptid });
@@ -77,14 +90,19 @@ async function update({ id, deptid, academicYear, title, startDate, endDate }) {
 	validateDates(startDate, endDate);
 
 	await instanceModel.ensureTable();
-	const updated = await instanceModel.updateInstance({
-		id,
-		deptid,
-		academicYear,
-		title: String(title).trim(),
-		startDate: normalizeDateOnly(startDate),
-		endDate: normalizeDateOnly(endDate)
-	});
+	let updated;
+	try {
+		updated = await instanceModel.updateInstance({
+			id,
+			deptid,
+			academicYear,
+			title: String(title).trim(),
+			startDate: normalizeDateOnly(startDate),
+			endDate: normalizeDateOnly(endDate)
+		});
+	} catch (error) {
+		throw getFriendlyDbError(error) || error;
+	}
 
 	if (!updated) {
 		throw new Error('Instance not found');
@@ -96,6 +114,15 @@ async function update({ id, deptid, academicYear, title, startDate, endDate }) {
 async function activate({ id, deptid }) {
 	await instanceModel.ensureTable();
 	const updated = await instanceModel.setActive({ id, deptid });
+	if (!updated) {
+		throw new Error('Instance not found');
+	}
+	return updated;
+}
+
+async function deactivate({ id, deptid }) {
+	await instanceModel.ensureTable();
+	const updated = await instanceModel.setInactive({ id, deptid });
 	if (!updated) {
 		throw new Error('Instance not found');
 	}
@@ -116,5 +143,6 @@ module.exports = {
 	create,
 	update,
 	activate,
+	deactivate,
 	remove
 };

@@ -68,6 +68,16 @@ export default function StudentLogin() {
           uid: uid
         });
         if (res.data && res.data.groups) {
+          const isActiveInstance = res.data.instanceActive !== false;
+          if (!isActiveInstance) {
+            setGroups([]);
+            setSelectedOrders({});
+            setInstanceId(res.data?.student?.instanceId ?? null);
+            setError('This elective instance is currently inactive. Preference submission is not available at this time.');
+            showNotification('This elective instance is currently inactive. Preference submission is not available at this time.', 'error');
+            return;
+          }
+
           setGroups(res.data.groups || []);
           setSelectedOrders({});
           setPreferencesHtml('');

@@ -51,7 +51,22 @@ exports.checkName = async (req, res) => {
       groupsWithCourses.push({ group: g, courses, existingPreferences });
     }
 
-    return res.json({ student: { name: student.Name, usn: student.USN, deptid, instanceId }, groups: groupsWithCourses });
+    const instanceStatus = instanceId == null
+      ? null
+      : await pool.query(
+          `SELECT is_active
+           FROM public.hod_academic_year_instances
+           WHERE id = $1`,
+          [instanceId]
+        );
+
+    const isActiveInstance = instanceStatus?.rows?.[0]?.is_active ?? false;
+
+    return res.json({
+      student: { name: student.Name, usn: student.USN, deptid, instanceId },
+      instanceActive: isActiveInstance,
+      groups: isActiveInstance ? groupsWithCourses : []
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Server error.' });
@@ -70,6 +85,22 @@ exports.submitPreferences = async (req, res) => {
     const student = await studentsModel.findByUsn(usn.trim());
     if (!student) return res.status(404).json({ error: 'Student not found.' });
     const instanceId = student.instance_id || null;
+
+    if (instanceId == null) {
+      return res.status(400).json({ error: 'Your student record is not linked to an active elective instance. Please contact the department.' });
+    }
+
+    const instanceResult = await pool.query(
+      `SELECT id, is_active
+       FROM public.hod_academic_year_instances
+       WHERE id = $1`,
+      [instanceId]
+    );
+
+    const activeInstance = instanceResult.rows[0];
+    if (!activeInstance || !activeInstance.is_active) {
+      return res.status(400).json({ error: 'This elective instance is inactive. Preference submission is not allowed.' });
+    }
 
     const client = await pool.connect();
     try {

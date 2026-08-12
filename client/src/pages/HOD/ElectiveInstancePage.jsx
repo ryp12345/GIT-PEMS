@@ -4,6 +4,7 @@ import {
 	activateAcademicYearInstance,
 	createAcademicYearInstance,
 	deleteAcademicYearInstance,
+	deactivateAcademicYearInstance,
 	listAcademicYearInstances,
 	updateAcademicYearInstance
 } from '../../api/hod/instance.api';
@@ -136,7 +137,11 @@ export default function ElectiveInstancePage() {
 					startDate: form.startDate || null,
 					endDate: form.endDate || null
 				});
-				if (form.isActive) await activateAcademicYearInstance(editingId);
+				if (form.isActive) {
+					await activateAcademicYearInstance(editingId);
+				} else {
+					await deactivateAcademicYearInstance(editingId);
+				}
 				showNotification('Academic year instance updated successfully');
 			} else {
 				await createAcademicYearInstance({

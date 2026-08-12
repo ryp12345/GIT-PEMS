@@ -119,6 +119,18 @@ async function setActive({ id, deptid }) {
 	}
 }
 
+async function setInactive({ id, deptid }) {
+	const result = await pool.query(
+		`UPDATE public.hod_academic_year_instances
+		 SET is_active = FALSE,
+			 updated_at = NOW()
+		 WHERE id = $1 AND deptid = $2
+		 RETURNING id, deptid, academic_year, title, start_date, end_date, is_active, allocation_method, created_at, updated_at`,
+		[id, deptid]
+	);
+	return result.rows[0] ? mapRow(result.rows[0]) : null;
+}
+
 async function deleteInstance({ id, deptid }) {
 	const result = await pool.query(
 		`DELETE FROM public.hod_academic_year_instances
@@ -135,5 +147,6 @@ module.exports = {
 	createInstance,
 	updateInstance,
 	setActive,
+	setInactive,
 	deleteInstance
 };
