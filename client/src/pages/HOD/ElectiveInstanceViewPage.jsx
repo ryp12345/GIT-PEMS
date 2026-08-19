@@ -419,6 +419,8 @@ function StudentsTab(props) {
                                 <option value="6">6</option>
                                 <option value="7">7</option>
                                 <option value="8">8</option>
+                                <option value="9">9</option>
+                                <option value="10">10</option>
                             </select>
                         </Field>
                         <div className="sm:col-span-2"><ModalFooter onCancel={closeModal} submitLabel={editId ? 'Update Student' : 'Add Student'} /></div>
@@ -733,6 +735,8 @@ function ElectivesTab({ instanceId }) {
                                 <option value="6">6</option>
                                 <option value="7">7</option>
                                 <option value="8">8</option>
+                                <option value="9">9</option>
+                                <option value="10">10</option>
                             </select>
                         </Field>
                         <ModalFooter onCancel={closeModal} submitLabel={editId ? 'Update Elective' : 'Add Elective'} />
