@@ -12,9 +12,13 @@ async function ensureTable() {
 			is_active BOOLEAN NOT NULL DEFAULT FALSE,
 			allocation_method VARCHAR(40),
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			UNIQUE (deptid, academic_year)
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)
+	`);
+
+	await pool.query(`
+		ALTER TABLE public.hod_academic_year_instances
+		DROP CONSTRAINT IF EXISTS hod_academic_year_instances_deptid_academic_year_key
 	`);
 
 	await pool.query(`

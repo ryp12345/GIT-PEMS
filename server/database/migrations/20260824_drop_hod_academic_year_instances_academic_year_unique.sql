@@ -1,0 +1,2 @@
+ALTER TABLE public.hod_academic_year_instances
+DROP CONSTRAINT IF EXISTS hod_academic_year_instances_deptid_academic_year_key;

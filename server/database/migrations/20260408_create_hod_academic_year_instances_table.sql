@@ -9,6 +9,5 @@ CREATE TABLE IF NOT EXISTS public.hod_academic_year_instances
     is_active boolean NOT NULL DEFAULT false,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
-    CONSTRAINT hod_academic_year_instances_pkey PRIMARY KEY (id),
-    CONSTRAINT hod_academic_year_instances_deptid_academic_year_key UNIQUE (deptid, academic_year)
+    CONSTRAINT hod_academic_year_instances_pkey PRIMARY KEY (id)
 );

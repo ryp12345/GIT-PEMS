@@ -4,9 +4,6 @@ const ACADEMIC_YEAR_PATTERN = /^\d{4}-\d{4}$/;
 
 function getFriendlyDbError(error) {
 	if (!error) return null;
-	if (error.code === '23505' && String(error.constraint || '').includes('hod_academic_year_instances_deptid_academic_year_key')) {
-		return new Error('An instance for this academic year already exists in this department');
-	}
 	return null;
 }
 
